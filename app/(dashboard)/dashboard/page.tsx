@@ -314,6 +314,39 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* AI WEEKLY REPORT & CSV IMPORT CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {/* Weekly Report Card */}
+          <Link href="/reports">
+            <div className="bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm text-purple-100">Weekly Report</p>
+                  <p className="text-3xl font-bold text-white">AI Insights</p>
+                </div>
+                <div className="text-5xl">🤖</div>
+              </div>
+              <p className="text-purple-100 text-sm">Get AI analysis →</p>
+            </div>
+          </Link>
+
+          {/* CSV Import Card */}
+          <Link href="/import">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm text-green-100">Bulk Import</p>
+                  <p className="text-3xl font-bold text-white">CSV Upload</p>
+                </div>
+                <div className="text-5xl">📤</div>
+              </div>
+              <p className="text-green-100 text-sm">
+                Import from Zerodha/Upstox →
+              </p>
+            </div>
+          </Link>
+        </div>
+
         {/* PSYCHOLOGY TRACKER SECTION */}
         <div className="mb-8">
           <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg shadow-lg p-4">

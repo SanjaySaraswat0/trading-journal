@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TradeDetailModal from '@/components/trades/trade-detail-modal';
+import TradeChartModal from '@/components/trades/trade-chart-modal';
 import { 
   Search, 
   ArrowUpDown, 
@@ -23,20 +24,20 @@ interface Trade {
   asset_type: string;
   trade_type: string;
   entry_price: number;
-  exit_price: number | null;
+  exit_price?: number;
   quantity: number;
   position_size: number;
-  pnl: number | null;
-  pnl_percentage: number | null;
+  pnl?: number;
+  pnl_percentage?: number;
   status: string;
   entry_time: string;
-  exit_time: string | null;
-  setup_type: string | null;
-  screenshot_url: string | null;
-  stop_loss: number | null;
-  target_price: number | null;
-  timeframe: string | null;
-  reason: string | null;
+  exit_time?: string;
+  setup_type?: string;
+  screenshot_url?: string;
+  stop_loss?: number;
+  target_price?: number;
+  timeframe?: string;
+  reason?: string;
 }
 
 interface Stats {
@@ -60,6 +61,7 @@ export default function TradesPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [chartTrade, setChartTrade] = useState<Trade | null>(null);
   const [stats, setStats] = useState<Stats>({
     totalTrades: 0,
     totalPnL: 0,
@@ -109,13 +111,13 @@ export default function TradesPage() {
 
   function calculateStats(tradesList: Trade[]) {
     const totalTrades = tradesList.length;
-    const openPositions = tradesList.filter(t => t.status === 'open').length;
-    const closedTrades = tradesList.filter(t => t.status !== 'open');
+    const openPositions = tradesList.filter((t: Trade) => t.status === 'open').length;
+    const closedTrades = tradesList.filter((t: Trade) => t.status !== 'open');
     
     const totalPnL = tradesList.reduce((sum, t) => sum + (t.pnl || 0), 0);
     
-    const winTrades = tradesList.filter(t => t.status === 'win');
-    const lossTrades = tradesList.filter(t => t.status === 'loss');
+    const winTrades = tradesList.filter((t: Trade) => t.status === 'win');
+    const lossTrades = tradesList.filter((t: Trade) => t.status === 'loss');
     
     const avgWin = winTrades.length > 0
       ? winTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / winTrades.length
@@ -143,7 +145,7 @@ export default function TradesPage() {
     let filtered = [...trades];
 
     if (searchQuery) {
-      filtered = filtered.filter(trade =>
+      filtered = filtered.filter((trade: Trade) =>
         trade.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
         trade.setup_type?.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -151,9 +153,9 @@ export default function TradesPage() {
 
     if (filterStatus !== 'all') {
       if (filterStatus === 'closed') {
-        filtered = filtered.filter(t => t.status !== 'open');
+        filtered = filtered.filter((t: Trade) => t.status !== 'open');
       } else {
-        filtered = filtered.filter(t => t.status === filterStatus);
+        filtered = filtered.filter((t: Trade) => t.status === filterStatus);
       }
     }
 
@@ -197,6 +199,10 @@ export default function TradesPage() {
 
   function handleViewTrade(trade: Trade) {
     setSelectedTrade(trade);
+  }
+
+  function handleViewChart(trade: Trade) {
+    setChartTrade(trade);
   }
 
   function handleEditTrade(tradeId: string) {
@@ -418,7 +424,7 @@ export default function TradesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredTrades.map((trade) => (
+                  {filteredTrades.map((trade: Trade) => (
                     <tr key={trade.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -467,6 +473,13 @@ export default function TradesPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button
+                            onClick={() => handleViewChart(trade)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded"
+                            title="View Chart"
+                          >
+                            <BarChart3 className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleViewTrade(trade)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                             title="View Details"
@@ -497,7 +510,7 @@ export default function TradesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTrades.map((trade) => (
+            {filteredTrades.map((trade: Trade) => (
               <div key={trade.id} className="bg-white rounded-lg shadow p-4 hover:shadow-lg transition-shadow">
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -517,7 +530,7 @@ export default function TradesPage() {
                     <span className="text-gray-600">Entry:</span>
                     <span className="font-medium">${trade.entry_price.toFixed(2)}</span>
                   </div>
-                  {trade.pnl !== null && (
+                  {trade.pnl !== null && trade.pnl !== undefined && (
                     <div className="flex justify-between text-sm pt-2 border-t">
                       <span className="text-gray-600">P&L:</span>
                       <span className={`font-bold ${trade.pnl > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -528,6 +541,13 @@ export default function TradesPage() {
                 </div>
 
                 <div className="flex gap-2 pt-3 border-t">
+                  <button
+                    onClick={() => handleViewChart(trade)}
+                    className="flex-1 py-2 text-green-600 bg-green-50 rounded hover:bg-green-100 text-sm font-medium flex items-center justify-center gap-1"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    Chart
+                  </button>
                   <button
                     onClick={() => handleViewTrade(trade)}
                     className="flex-1 py-2 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 text-sm font-medium"
@@ -563,7 +583,17 @@ export default function TradesPage() {
       {selectedTrade && (
         <TradeDetailModal
           trade={selectedTrade}
+          isOpen={true}
           onClose={() => setSelectedTrade(null)}
+        />
+      )}
+
+      {/* Trade Chart Modal */}
+      {chartTrade && (
+        <TradeChartModal
+          trade={chartTrade}
+          isOpen={true}
+          onClose={() => setChartTrade(null)}
         />
       )}
     </div>
