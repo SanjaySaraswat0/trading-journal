@@ -1,253 +1,331 @@
-// File: src/app/api/trades/route.ts
-// COMPLETE VERSION - All CRUD operations
+// File: app/api/trades/import/route.ts
+// ✅ CORRECT: Named exports POST and GET
 
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/options';
+import { createServiceClient } from '@/lib/supabase/service';
 
-// CREATE - Add new trade
-export async function POST(request: Request) {
-  console.log('=== POST /api/trades START ===');
+interface ParsedTrade {
+  symbol: string;
+  trade_type: string;
+  entry_price: number;
+  exit_price?: number;
+  quantity: number;
+  entry_time: string;
+  exit_time?: string;
+  pnl?: number;
+  asset_type?: string;
+  setup_type?: string;
+  stop_loss?: number;
+  target_price?: number;
+}
+
+// Column mapping for different brokers
+const BROKER_MAPPINGS = {
+  zerodha: {
+    symbol: ['symbol', 'tradingsymbol', 'instrument'],
+    trade_type: ['trade_type', 'transaction_type', 'buy_sell'],
+    entry_price: ['buy_price', 'entry_price', 'price'],
+    exit_price: ['sell_price', 'exit_price'],
+    quantity: ['quantity', 'qty', 'volume'],
+    entry_time: ['buy_date', 'entry_date', 'trade_date', 'date'],
+    exit_time: ['sell_date', 'exit_date'],
+    pnl: ['pnl', 'profit_loss', 'net_pnl'],
+  },
+  upstox: {
+    symbol: ['symbol', 'scrip'],
+    trade_type: ['side', 'type'],
+    entry_price: ['avg_price', 'price'],
+    exit_price: ['exit_avg_price', 'sell_price'],
+    quantity: ['qty', 'quantity'],
+    entry_time: ['date', 'trade_date'],
+    pnl: ['realized_pnl', 'pnl'],
+  },
+  angel_one: {
+    symbol: ['symbol_name', 'symbol'],
+    trade_type: ['order_type', 'side'],
+    entry_price: ['buy_avg_price', 'price'],
+    exit_price: ['sell_avg_price'],
+    quantity: ['net_qty', 'quantity'],
+    entry_time: ['trade_date', 'date'],
+    pnl: ['net_pnl', 'pnl'],
+  },
+  generic: {
+    symbol: ['symbol', 'stock', 'ticker', 'instrument'],
+    trade_type: ['type', 'side', 'trade_type', 'action'],
+    entry_price: ['entry', 'buy_price', 'entry_price', 'price'],
+    exit_price: ['exit', 'sell_price', 'exit_price'],
+    quantity: ['qty', 'quantity', 'shares', 'volume'],
+    entry_time: ['entry_date', 'date', 'time', 'entry_time'],
+    exit_time: ['exit_date', 'exit_time', 'sell_date'],
+    pnl: ['pnl', 'profit', 'profit_loss', 'net'],
+  },
+};
+
+// Auto-detect broker format
+function detectBrokerFormat(headers: string[]): string {
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
   
+  if (lowerHeaders.includes('tradingsymbol') || lowerHeaders.includes('order_id')) {
+    return 'zerodha';
+  }
+  if (lowerHeaders.includes('scrip') || lowerHeaders.includes('upstox')) {
+    return 'upstox';
+  }
+  if (lowerHeaders.includes('symbol_name') || lowerHeaders.includes('angelone')) {
+    return 'angel_one';
+  }
+  return 'generic';
+}
+
+// Find column index by multiple possible names
+function findColumn(headers: string[], possibleNames: string[]): number {
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+  
+  for (const name of possibleNames) {
+    const index = lowerHeaders.indexOf(name.toLowerCase());
+    if (index !== -1) return index;
+  }
+  
+  return -1;
+}
+
+// Parse CSV row to trade object
+function parseRowToTrade(
+  row: any[],
+  headers: string[],
+  mapping: any
+): ParsedTrade | null {
   try {
-    const { getServerSession } = await import('next-auth/next');
-    const { authOptions } = await import('@/lib/auth/options');
-    const { createServiceClient } = await import('@/lib/supabase/service');
+    const symbolIdx = findColumn(headers, mapping.symbol);
+    const typeIdx = findColumn(headers, mapping.trade_type);
+    const entryPriceIdx = findColumn(headers, mapping.entry_price);
+    const qtyIdx = findColumn(headers, mapping.quantity);
+    const entryTimeIdx = findColumn(headers, mapping.entry_time);
+
+    if (symbolIdx === -1 || entryPriceIdx === -1 || qtyIdx === -1) {
+      return null;
+    }
+
+    const symbol = String(row[symbolIdx] || '').trim().toUpperCase();
+    let tradeType = String(row[typeIdx] || 'long').toLowerCase();
+    
+    // Normalize trade type
+    if (tradeType.includes('buy') || tradeType === 'b') tradeType = 'long';
+    if (tradeType.includes('sell') || tradeType === 's') tradeType = 'short';
+    if (!['long', 'short'].includes(tradeType)) tradeType = 'long';
+
+    const entryPrice = parseFloat(String(row[entryPriceIdx] || 0));
+    const quantity = parseInt(String(row[qtyIdx] || 0));
+
+    if (!symbol || entryPrice <= 0 || quantity <= 0) {
+      return null;
+    }
+
+    const trade: ParsedTrade = {
+      symbol,
+      trade_type: tradeType,
+      entry_price: entryPrice,
+      quantity,
+      entry_time: row[entryTimeIdx] || new Date().toISOString(),
+    };
+
+    // Optional fields
+    const exitPriceIdx = findColumn(headers, mapping.exit_price || []);
+    if (exitPriceIdx !== -1 && row[exitPriceIdx]) {
+      trade.exit_price = parseFloat(String(row[exitPriceIdx]));
+    }
+
+    const exitTimeIdx = findColumn(headers, mapping.exit_time || []);
+    if (exitTimeIdx !== -1 && row[exitTimeIdx]) {
+      trade.exit_time = String(row[exitTimeIdx]);
+    }
+
+    const pnlIdx = findColumn(headers, mapping.pnl || []);
+    if (pnlIdx !== -1 && row[pnlIdx]) {
+      trade.pnl = parseFloat(String(row[pnlIdx]));
+    }
+
+    // Auto-detect asset type from symbol
+    if (symbol.includes('.NS') || symbol.includes('.BO')) {
+      trade.asset_type = 'stock';
+    } else if (symbol.endsWith('USD') || symbol.length === 6) {
+      trade.asset_type = symbol.length === 6 ? 'forex' : 'crypto';
+    } else {
+      trade.asset_type = 'stock';
+    }
+
+    return trade;
+  } catch (error) {
+    console.error('Error parsing row:', error);
+    return null;
+  }
+}
+
+// ✅ CRITICAL: Must use "export async function POST"
+export async function POST(request: Request) {
+  try {
+    console.log('🔵 POST /api/trades/import - Request received');
 
     const session = await getServerSession(authOptions);
-    
     if (!session?.user?.id) {
+      console.log('❌ Unauthorized - No session');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createServiceClient();
-
-    // Check/create profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', session.user.id)
-      .maybeSingle();
-
-    if (!profile) {
-      await supabase.from('profiles').insert({
-        id: session.user.id,
-        email: session.user.email as string,
-        name: session.user.name || 'User',
-        subscription_type: 'free',
-        trading_experience: 'beginner',
-        preferred_markets: ['stocks']
-      } as any);
-    }
-
     const body = await request.json();
+    const { csvData, brokerFormat } = body;
 
-    if (!body.symbol || !body.entry_price || !body.quantity || !body.position_size || !body.entry_time) {
+    if (!csvData || !Array.isArray(csvData) || csvData.length === 0) {
       return NextResponse.json({ 
-        error: 'Missing required fields' 
+        error: 'Invalid CSV data',
+        details: 'CSV must have at least headers and one data row'
       }, { status: 400 });
     }
 
-    // Calculate P&L
-    let pnl = null;
-    let pnl_percentage = null;
-    let status = 'open';
+    console.log(`📊 Processing CSV import: ${csvData.length} rows`);
 
-    if (body.exit_price && body.exit_price !== '') {
-      const entry = parseFloat(body.entry_price);
-      const exit = parseFloat(body.exit_price);
-      const qty = parseInt(body.quantity);
-      const posSize = parseFloat(body.position_size);
-      
-      if (body.trade_type === 'long') {
-        pnl = (exit - entry) * qty;
+    const headers = csvData[0];
+    const rows = csvData.slice(1);
+
+    // Auto-detect broker format if not provided
+    const format = brokerFormat || detectBrokerFormat(headers);
+    const mapping = BROKER_MAPPINGS[format as keyof typeof BROKER_MAPPINGS] || BROKER_MAPPINGS.generic;
+
+    console.log(`🔍 Detected format: ${format}`);
+
+    // Parse all rows
+    const parsedTrades: ParsedTrade[] = [];
+    const errors: string[] = [];
+
+    rows.forEach((row, idx) => {
+      const trade = parseRowToTrade(row, headers, mapping);
+      if (trade) {
+        parsedTrades.push(trade);
       } else {
-        pnl = (entry - exit) * qty;
+        errors.push(`Row ${idx + 2}: Invalid or incomplete data`);
       }
-      
-      pnl_percentage = (pnl / posSize) * 100;
-      
-      if (pnl > 0) status = 'win';
-      else if (pnl < 0) status = 'loss';
-      else status = 'breakeven';
+    });
+
+    if (parsedTrades.length === 0) {
+      return NextResponse.json({
+        error: 'No valid trades found in CSV',
+        details: errors.slice(0, 5),
+        totalErrors: errors.length,
+      }, { status: 400 });
     }
 
-    const { data: trade, error } = await supabase
-      .from('trades')
-      .insert({
+    console.log(`✅ Parsed ${parsedTrades.length} valid trades`);
+
+    // Calculate P&L for closed trades
+    const tradesWithPnL = parsedTrades.map(trade => {
+      const positionSize = trade.entry_price * trade.quantity;
+      
+      let pnl = trade.pnl;
+      let pnlPercentage = 0;
+      let status = 'open';
+
+      if (trade.exit_price) {
+        if (pnl === undefined) {
+          const exitValue = trade.exit_price * trade.quantity;
+          pnl = trade.trade_type === 'long' 
+            ? exitValue - positionSize 
+            : positionSize - exitValue;
+        }
+        
+        pnlPercentage = (pnl / positionSize) * 100;
+        
+        if (pnl > 0) status = 'win';
+        else if (pnl < 0) status = 'loss';
+        else status = 'breakeven';
+      }
+
+      return {
         user_id: session.user.id,
-        symbol: String(body.symbol).toUpperCase(),
-        asset_type: body.asset_type || 'stock',
-        trade_type: body.trade_type || 'long',
-        entry_price: parseFloat(body.entry_price),
-        exit_price: body.exit_price ? parseFloat(body.exit_price) : null,
-        stop_loss: body.stop_loss ? parseFloat(body.stop_loss) : null,
-        target_price: body.target_price ? parseFloat(body.target_price) : null,
-        quantity: parseInt(body.quantity),
-        position_size: parseFloat(body.position_size),
-        pnl,
-        pnl_percentage,
+        symbol: trade.symbol,
+        asset_type: trade.asset_type || 'stock',
+        trade_type: trade.trade_type,
+        entry_price: trade.entry_price,
+        exit_price: trade.exit_price || null,
+        quantity: trade.quantity,
+        position_size: positionSize,
+        pnl: pnl || null,
+        pnl_percentage: pnlPercentage || null,
         status,
-        entry_time: body.entry_time,
-        exit_time: body.exit_time || null,
-        timeframe: body.timeframe || null,
-        setup_type: body.setup_type || null,
-        reason: body.reason || null,
-        screenshot_url: body.screenshot_url || null,
-        emotions: body.emotions || [],
-        tags: body.tags || [],
-      })
-      .select()
-      .single();
+        entry_time: trade.entry_time,
+        exit_time: trade.exit_time || null,
+        stop_loss: trade.stop_loss || null,
+        target_price: trade.target_price || null,
+        setup_type: trade.setup_type || null,
+        timeframe: '1d',
+        reason: `Imported from CSV (${format})`,
+      };
+    });
+
+    // Insert into database
+    const supabase = createServiceClient();
+    
+    const { data, error } = await supabase
+      .from('trades')
+      .insert(tradesWithPnL)
+      .select();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('❌ Database error:', error);
+      return NextResponse.json({
+        error: 'Failed to import trades',
+        details: error.message,
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ trade, success: true }, { status: 201 });
+    console.log(`💾 Imported ${data?.length || 0} trades successfully`);
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully imported ${data?.length || 0} trades`,
+      imported: data?.length || 0,
+      skipped: errors.length,
+      errors: errors.slice(0, 5),
+      detectedFormat: format,
+    });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ CSV import error:', error);
+    return NextResponse.json({
+      error: error.message || 'Failed to process CSV',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    }, { status: 500 });
   }
 }
 
-// READ - Get all trades
+// ✅ CRITICAL: Must use "export async function GET"
 export async function GET(request: Request) {
   try {
-    const { getServerSession } = await import('next-auth/next');
-    const { authOptions } = await import('@/lib/auth/options');
-    const { createServiceClient } = await import('@/lib/supabase/service');
+    console.log('🔵 GET /api/trades/import - Request received');
 
     const session = await getServerSession(authOptions);
-    
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createServiceClient();
-    
-    const { data: trades, error } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('entry_time', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ trades: trades || [] });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// UPDATE - Edit existing trade
-export async function PUT(request: Request) {
-  console.log('=== PUT /api/trades START ===');
-  
-  try {
-    const { getServerSession } = await import('next-auth/next');
-    const { authOptions } = await import('@/lib/auth/options');
-    const { createServiceClient } = await import('@/lib/supabase/service');
-
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const supabase = createServiceClient();
-    const body = await request.json();
-    const { id, ...updateData } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Trade ID required' }, { status: 400 });
-    }
-
-    // Recalculate P&L if exit price provided
-    if (updateData.exit_price && updateData.entry_price && updateData.quantity) {
-      const entry = parseFloat(updateData.entry_price);
-      const exit = parseFloat(updateData.exit_price);
-      const qty = parseInt(updateData.quantity);
-      const posSize = parseFloat(updateData.position_size);
-      
-      let pnl;
-      if (updateData.trade_type === 'long') {
-        pnl = (exit - entry) * qty;
-      } else {
-        pnl = (entry - exit) * qty;
-      }
-      
-      updateData.pnl = pnl;
-      updateData.pnl_percentage = (pnl / posSize) * 100;
-      
-      if (pnl > 0) updateData.status = 'win';
-      else if (pnl < 0) updateData.status = 'loss';
-      else updateData.status = 'breakeven';
-    }
-
-    updateData.updated_at = new Date().toISOString();
-
-    const { data: trade, error } = await supabase
-      .from('trades')
-      .update(updateData)
-      .eq('id', id)
-      .eq('user_id', session.user.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Trade update error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    console.log('Trade updated successfully');
-    return NextResponse.json({ trade, success: true });
+    return NextResponse.json({
+      supportedFormats: Object.keys(BROKER_MAPPINGS),
+      requiredColumns: ['symbol', 'entry_price', 'quantity'],
+      optionalColumns: ['exit_price', 'trade_type', 'pnl', 'entry_time', 'exit_time'],
+      sampleFormat: {
+        symbol: 'RELIANCE.NS',
+        trade_type: 'long',
+        entry_price: 2500.50,
+        exit_price: 2550.00,
+        quantity: 10,
+        entry_time: '2024-01-15',
+        exit_time: '2024-01-16',
+      },
+    });
 
   } catch (error: any) {
-    console.error('PUT error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// DELETE - Remove trade
-export async function DELETE(request: Request) {
-  console.log('=== DELETE /api/trades START ===');
-  
-  try {
-    const { getServerSession } = await import('next-auth/next');
-    const { authOptions } = await import('@/lib/auth/options');
-    const { createServiceClient } = await import('@/lib/supabase/service');
-
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const supabase = createServiceClient();
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ error: 'Trade ID required' }, { status: 400 });
-    }
-
-    const { error } = await supabase
-      .from('trades')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', session.user.id);
-
-    if (error) {
-      console.error('Trade delete error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    console.log('Trade deleted successfully');
-    return NextResponse.json({ success: true, message: 'Trade deleted' });
-
-  } catch (error: any) {
-    console.error('DELETE error:', error);
+    console.error('❌ GET error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
