@@ -1,0 +1,340 @@
+// app/api/trades/import/route.ts
+// IMPROVED VERSION WITH BETTER COLUMN DETECTION
+
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/options';
+import { createServiceClient } from '@/lib/supabase/service';
+
+interface ParsedTrade {
+  symbol: string;
+  trade_type: string;
+  entry_price: number;
+  exit_price?: number;
+  quantity: number;
+  entry_time: string;
+  exit_time?: string;
+  pnl?: number;
+  asset_type?: string;
+}
+
+// EXPANDED BROKER MAPPINGS WITH MORE VARIATIONS
+const BROKER_MAPPINGS = {
+  zerodha: {
+    symbol: ['symbol', 'tradingsymbol', 'instrument', 'scrip', 'stock'],
+    trade_type: ['trade_type', 'transaction_type', 'buy_sell', 'side', 'type', 'action'],
+    entry_price: ['buy_price', 'entry_price', 'price', 'avg_price', 'buy_avg_price', 'rate'],
+    exit_price: ['sell_price', 'exit_price', 'exit_avg_price', 'sell_avg_price'],
+    quantity: ['quantity', 'qty', 'volume', 'lot', 'lots', 'net_qty'],
+    entry_time: ['buy_date', 'entry_date', 'trade_date', 'date', 'time', 'buy_time', 'entry_time'],
+    exit_time: ['sell_date', 'exit_date', 'sell_time', 'exit_time'],
+    pnl: ['pnl', 'profit_loss', 'net_pnl', 'realized_pnl', 'p&l', 'profit', 'loss'],
+  },
+  upstox: {
+    symbol: ['symbol', 'scrip', 'instrument', 'stock'],
+    trade_type: ['side', 'type', 'transaction_type', 'action'],
+    entry_price: ['avg_price', 'price', 'entry_price', 'buy_price'],
+    exit_price: ['exit_avg_price', 'sell_price', 'exit_price'],
+    quantity: ['qty', 'quantity', 'volume', 'net_qty'],
+    entry_time: ['date', 'trade_date', 'time', 'entry_date'],
+    pnl: ['realized_pnl', 'pnl', 'p&l', 'profit_loss'],
+  },
+  generic: {
+    symbol: ['symbol', 'stock', 'ticker', 'instrument', 'scrip', 'name', 'tradingsymbol'],
+    trade_type: ['type', 'side', 'trade_type', 'action', 'buy_sell', 'transaction', 'trans'],
+    entry_price: ['entry', 'buy_price', 'entry_price', 'price', 'rate', 'buy', 'avg_price'],
+    exit_price: ['exit', 'sell_price', 'exit_price', 'sell', 'sell_avg_price'],
+    quantity: ['qty', 'quantity', 'shares', 'volume', 'lot', 'lots', 'net_qty', 'units'],
+    entry_time: ['entry_date', 'date', 'time', 'entry_time', 'buy_date', 'trade_date'],
+    exit_time: ['exit_date', 'exit_time', 'sell_date', 'sell_time'],
+    pnl: ['pnl', 'profit', 'profit_loss', 'net', 'p&l', 'realized_pnl', 'gain_loss'],
+  },
+};
+
+function detectBrokerFormat(headers: string[]): string {
+  const lowerHeaders = headers.map(h => String(h).toLowerCase().trim());
+  
+  console.log('🔍 Detecting format from headers:', lowerHeaders.slice(0, 10));
+  
+  if (lowerHeaders.includes('tradingsymbol') || lowerHeaders.includes('order_id')) {
+    return 'zerodha';
+  }
+  if (lowerHeaders.includes('scrip') || lowerHeaders.includes('upstox')) {
+    return 'upstox';
+  }
+  return 'generic';
+}
+
+function findColumn(headers: string[], possibleNames: string[]): number {
+  const lowerHeaders = headers.map(h => String(h).toLowerCase().trim().replace(/[^a-z0-9]/g, ''));
+  
+  for (const name of possibleNames) {
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const index = lowerHeaders.findIndex(h => h.includes(cleanName) || cleanName.includes(h));
+    if (index !== -1) {
+      console.log(`✅ Found column "${name}" at index ${index} (header: "${headers[index]}")`);
+      return index;
+    }
+  }
+  
+  console.log(`❌ Column not found for: ${possibleNames.join(', ')}`);
+  return -1;
+}
+
+function parseRowToTrade(
+  row: any[],
+  headers: string[],
+  mapping: any,
+  rowIndex: number
+): ParsedTrade | null {
+  try {
+    const symbolIdx = findColumn(headers, mapping.symbol);
+    const typeIdx = findColumn(headers, mapping.trade_type);
+    const entryPriceIdx = findColumn(headers, mapping.entry_price);
+    const qtyIdx = findColumn(headers, mapping.quantity);
+    const entryTimeIdx = findColumn(headers, mapping.entry_time);
+
+    console.log(`\n📋 Row ${rowIndex + 2} parsing:`, {
+      symbolIdx, typeIdx, entryPriceIdx, qtyIdx, entryTimeIdx
+    });
+
+    if (symbolIdx === -1 || entryPriceIdx === -1 || qtyIdx === -1) {
+      console.log(`❌ Row ${rowIndex + 2}: Missing required columns`);
+      return null;
+    }
+
+    // Clean and parse values
+    const symbol = String(row[symbolIdx] || '').trim().toUpperCase();
+    let tradeType = String(row[typeIdx] || 'long').toLowerCase().trim();
+    
+    // Flexible trade type detection
+    if (tradeType.includes('buy') || tradeType === 'b' || tradeType === 'bought') {
+      tradeType = 'long';
+    } else if (tradeType.includes('sell') || tradeType === 's' || tradeType === 'sold') {
+      tradeType = 'short';
+    }
+    if (!['long', 'short'].includes(tradeType)) tradeType = 'long';
+
+    // Parse numbers - handle various formats
+    const entryPriceRaw = String(row[entryPriceIdx] || '0').replace(/[,₹$]/g, '').trim();
+    const entryPrice = parseFloat(entryPriceRaw);
+    
+    const quantityRaw = String(row[qtyIdx] || '0').replace(/[,]/g, '').trim();
+    const quantity = parseInt(quantityRaw);
+
+    console.log(`📊 Parsed values:`, { symbol, tradeType, entryPrice, quantity });
+
+    if (!symbol || entryPrice <= 0 || quantity <= 0 || isNaN(entryPrice) || isNaN(quantity)) {
+      console.log(`❌ Row ${rowIndex + 2}: Invalid values - symbol: "${symbol}", entry: ${entryPrice}, qty: ${quantity}`);
+      return null;
+    }
+
+    const trade: ParsedTrade = {
+      symbol,
+      trade_type: tradeType,
+      entry_price: entryPrice,
+      quantity,
+      entry_time: row[entryTimeIdx] || new Date().toISOString(),
+    };
+
+    // Optional fields
+    const exitPriceIdx = findColumn(headers, mapping.exit_price || []);
+    if (exitPriceIdx !== -1 && row[exitPriceIdx]) {
+      const exitPriceRaw = String(row[exitPriceIdx]).replace(/[,₹$]/g, '').trim();
+      const exitPrice = parseFloat(exitPriceRaw);
+      if (!isNaN(exitPrice) && exitPrice > 0) {
+        trade.exit_price = exitPrice;
+      }
+    }
+
+    const exitTimeIdx = findColumn(headers, mapping.exit_time || []);
+    if (exitTimeIdx !== -1 && row[exitTimeIdx]) {
+      trade.exit_time = String(row[exitTimeIdx]);
+    }
+
+    const pnlIdx = findColumn(headers, mapping.pnl || []);
+    if (pnlIdx !== -1 && row[pnlIdx]) {
+      const pnlRaw = String(row[pnlIdx]).replace(/[,₹$]/g, '').trim();
+      const pnl = parseFloat(pnlRaw);
+      if (!isNaN(pnl)) {
+        trade.pnl = pnl;
+      }
+    }
+
+    // Asset type detection
+    if (symbol.includes('.NS') || symbol.includes('.BO')) {
+      trade.asset_type = 'stock';
+    } else if (symbol.endsWith('FUT') || symbol.includes('FUT')) {
+      trade.asset_type = 'option'; // Futures
+    } else if (symbol.endsWith('CE') || symbol.endsWith('PE')) {
+      trade.asset_type = 'option';
+    } else {
+      trade.asset_type = 'stock';
+    }
+
+    console.log(`✅ Row ${rowIndex + 2}: Successfully parsed trade`);
+    return trade;
+  } catch (error) {
+    console.error(`❌ Row ${rowIndex + 2} parsing error:`, error);
+    return null;
+  }
+}
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    return NextResponse.json({
+      supportedFormats: ['zerodha', 'upstox', 'generic'],
+      requiredColumns: ['symbol', 'entry_price', 'quantity'],
+      optionalColumns: ['exit_price', 'trade_type', 'pnl', 'entry_time'],
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    console.log('✅ CSV/Excel Import API Called');
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      console.log('❌ No session');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { csvData, brokerFormat } = body;
+
+    if (!csvData || !Array.isArray(csvData) || csvData.length === 0) {
+      return NextResponse.json({ 
+        error: 'Invalid file data'
+      }, { status: 400 });
+    }
+
+    console.log(`📊 Processing ${csvData.length} rows`);
+
+    // Filter out empty rows
+    const nonEmptyRows = csvData.filter(row => 
+      Array.isArray(row) && row.some(cell => cell && String(cell).trim() !== '')
+    );
+
+    if (nonEmptyRows.length < 2) {
+      return NextResponse.json({
+        error: 'File must have at least a header row and one data row'
+      }, { status: 400 });
+    }
+
+    const headers = nonEmptyRows[0];
+    const rows = nonEmptyRows.slice(1);
+
+    console.log('📋 Headers:', headers);
+
+    const format = brokerFormat || detectBrokerFormat(headers);
+    const mapping = BROKER_MAPPINGS[format as keyof typeof BROKER_MAPPINGS] || BROKER_MAPPINGS.generic;
+
+    console.log(`🔍 Format: ${format}`);
+
+    const parsedTrades: ParsedTrade[] = [];
+    const errors: string[] = [];
+
+    rows.forEach((row, idx) => {
+      const trade = parseRowToTrade(row, headers, mapping, idx);
+      if (trade) {
+        parsedTrades.push(trade);
+      } else {
+        errors.push(`Row ${idx + 2}: Could not parse trade data`);
+      }
+    });
+
+    console.log(`✅ Parsed ${parsedTrades.length} valid trades out of ${rows.length} rows`);
+
+    if (parsedTrades.length === 0) {
+      return NextResponse.json({
+        error: 'No valid trades found',
+        details: 'Could not extract required columns (symbol, entry_price, quantity)',
+        headers: headers,
+        sampleRow: rows[0],
+        errors: errors.slice(0, 5),
+      }, { status: 400 });
+    }
+
+    // Calculate P&L and prepare for database
+    const tradesWithPnL = parsedTrades.map(trade => {
+      const positionSize = trade.entry_price * trade.quantity;
+      
+      let pnl = trade.pnl;
+      let pnlPercentage = 0;
+      let status = 'open';
+
+      if (trade.exit_price) {
+        if (pnl === undefined) {
+          const exitValue = trade.exit_price * trade.quantity;
+          pnl = trade.trade_type === 'long' 
+            ? exitValue - positionSize 
+            : positionSize - exitValue;
+        }
+        
+        pnlPercentage = (pnl / positionSize) * 100;
+        
+        if (pnl > 0) status = 'win';
+        else if (pnl < 0) status = 'loss';
+        else status = 'breakeven';
+      }
+
+      return {
+        user_id: session.user.id,
+        symbol: trade.symbol,
+        asset_type: trade.asset_type || 'stock',
+        trade_type: trade.trade_type,
+        entry_price: trade.entry_price,
+        exit_price: trade.exit_price || null,
+        quantity: trade.quantity,
+        position_size: positionSize,
+        pnl: pnl || null,
+        pnl_percentage: pnlPercentage || null,
+        status,
+        entry_time: trade.entry_time,
+        exit_time: trade.exit_time || null,
+        timeframe: '1d',
+        reason: `Imported from ${format} file`,
+      };
+    });
+
+    const supabase = createServiceClient();
+    
+    const { data, error } = await supabase
+      .from('trades')
+      .insert(tradesWithPnL)
+      .select();
+
+    if (error) {
+      console.error('❌ DB error:', error);
+      return NextResponse.json({
+        error: 'Failed to import trades',
+        details: error.message,
+      }, { status: 500 });
+    }
+
+    console.log(`💾 Successfully imported ${data?.length || 0} trades`);
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully imported ${data?.length || 0} trades`,
+      imported: data?.length || 0,
+      skipped: errors.length,
+      errors: errors.slice(0, 5),
+      detectedFormat: format,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Import error:', error);
+    return NextResponse.json({
+      error: error.message || 'Failed to process file',
+    }, { status: 500 });
+  }
+}

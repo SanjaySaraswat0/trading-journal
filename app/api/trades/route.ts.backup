@@ -1,54 +1,25 @@
 // app/api/trades/route.ts
-// PRODUCTION-READY WITH CORRECT P&L CALCULATION
+// Main Trades CRUD API - DO NOT CONFUSE WITH import/route.ts
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { createServiceClient } from '@/lib/supabase/service';
 
-// ⭐ CRITICAL: CORRECT P&L CALCULATION FUNCTION
-function calculatePnL(
-  entryPrice: number,
-  exitPrice: number,
-  quantity: number,
-  tradeType: 'long' | 'short'
-): { pnl: number; pnlPercentage: number; status: string } {
-  let pnl: number;
-  
-  if (tradeType === 'long') {
-    // Long: Profit when exit > entry
-    pnl = (exitPrice - entryPrice) * quantity;
-  } else {
-    // Short: Profit when entry > exit
-    pnl = (entryPrice - exitPrice) * quantity;
-  }
-  
-  const positionSize = entryPrice * quantity;
-  const pnlPercentage = (pnl / positionSize) * 100;
-  
-  let status = 'open';
-  if (pnl > 0.01) {
-    status = 'win';
-  } else if (pnl < -0.01) {
-    status = 'loss';
-  } else {
-    status = 'breakeven';
-  }
-  
-  return { pnl, pnlPercentage, status };
-}
-
 // ==========================================
-// GET - FETCH TRADES
+// GET ALL TRADES FOR CURRENT USER
 // ==========================================
 export async function GET(request: Request) {
   try {
-    console.log('🟢 GET /api/trades');
+    console.log('🟢 MAIN TRADES API - GET /api/trades');
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
+      console.log('❌ No session in main trades API');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    console.log('✅ User authenticated:', session.user.id);
 
     const { searchParams } = new URL(request.url);
     const tradeId = searchParams.get('id');
@@ -56,7 +27,9 @@ export async function GET(request: Request) {
     const supabase = createServiceClient();
 
     if (tradeId) {
-      // Single trade
+      // Fetch single trade
+      console.log('📋 Fetching single trade:', tradeId);
+      
       const { data, error } = await supabase
         .from('trades')
         .select('*')
@@ -65,12 +38,16 @@ export async function GET(request: Request) {
         .single();
 
       if (error) {
+        console.error('❌ Database error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      console.log('✅ Single trade fetched');
       return NextResponse.json({ trade: data });
     } else {
-      // All trades
+      // Fetch all trades for user
+      console.log('📊 Fetching all trades for user:', session.user.id);
+      
       const { data, error } = await supabase
         .from('trades')
         .select('*')
@@ -78,27 +55,34 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: false });
 
       if (error) {
+        console.error('❌ Database error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      console.log(`✅ Fetched ${data?.length || 0} trades`);
+      console.log(`✅ MAIN API: Fetched ${data?.length || 0} trades`);
+      
+      // Return trades array
       return NextResponse.json({ 
         trades: data || [],
-        count: data?.length || 0 
+        count: data?.length || 0,
+        user_id: session.user.id 
       });
     }
   } catch (error: any) {
-    console.error('❌ GET error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ GET /api/trades error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
 // ==========================================
-// POST - CREATE TRADE
+// CREATE NEW TRADE
 // ==========================================
 export async function POST(request: Request) {
   try {
-    console.log('🟢 POST /api/trades');
+    console.log('🟢 MAIN TRADES API - POST /api/trades');
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -107,32 +91,23 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
+    // Calculate P&L
     const positionSize = body.entry_price * body.quantity;
     let pnl = null;
     let pnlPercentage = null;
     let status = 'open';
 
-    if (body.exit_price && body.exit_price > 0) {
-      // ⭐ CRITICAL: USE CORRECT CALCULATION
-      const result = calculatePnL(
-        body.entry_price,
-        body.exit_price,
-        body.quantity,
-        body.trade_type
-      );
+    if (body.exit_price) {
+      const exitValue = body.exit_price * body.quantity;
+      pnl = body.trade_type === 'long' 
+        ? exitValue - positionSize 
+        : positionSize - exitValue;
       
-      pnl = result.pnl;
-      pnlPercentage = result.pnlPercentage;
-      status = result.status;
-
-      console.log('💰 P&L calculated:', {
-        type: body.trade_type,
-        entry: body.entry_price,
-        exit: body.exit_price,
-        qty: body.quantity,
-        pnl: pnl.toFixed(2),
-        status
-      });
+      pnlPercentage = (pnl / positionSize) * 100;
+      
+      if (pnl > 0) status = 'win';
+      else if (pnl < 0) status = 'loss';
+      else status = 'breakeven';
     }
 
     const tradeData = {
@@ -175,17 +150,20 @@ export async function POST(request: Request) {
     console.log('✅ Trade created:', data.id);
     return NextResponse.json({ trade: data }, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ POST /api/trades error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create trade' },
+      { status: 500 }
+    );
   }
 }
 
 // ==========================================
-// PUT - UPDATE TRADE
+// UPDATE TRADE
 // ==========================================
 export async function PUT(request: Request) {
   try {
-    console.log('🟢 PUT /api/trades');
+    console.log('🟢 MAIN TRADES API - PUT /api/trades');
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -200,23 +178,20 @@ export async function PUT(request: Request) {
     }
 
     // Recalculate P&L if needed
-    if (updateData.entry_price && updateData.exit_price && updateData.quantity && updateData.trade_type) {
-      const result = calculatePnL(
-        updateData.entry_price,
-        updateData.exit_price,
-        updateData.quantity,
-        updateData.trade_type
-      );
+    if (updateData.entry_price && updateData.exit_price && updateData.quantity) {
+      const positionSize = updateData.entry_price * updateData.quantity;
+      const exitValue = updateData.exit_price * updateData.quantity;
+      const pnl = updateData.trade_type === 'long' 
+        ? exitValue - positionSize 
+        : positionSize - exitValue;
       
-      updateData.pnl = result.pnl;
-      updateData.pnl_percentage = result.pnlPercentage;
-      updateData.status = result.status;
-      updateData.position_size = updateData.entry_price * updateData.quantity;
-
-      console.log('💰 P&L recalculated on update:', {
-        pnl: result.pnl.toFixed(2),
-        status: result.status
-      });
+      updateData.pnl = pnl;
+      updateData.pnl_percentage = (pnl / positionSize) * 100;
+      updateData.position_size = positionSize;
+      
+      if (pnl > 0) updateData.status = 'win';
+      else if (pnl < 0) updateData.status = 'loss';
+      else updateData.status = 'breakeven';
     }
 
     updateData.updated_at = new Date().toISOString();
@@ -239,17 +214,20 @@ export async function PUT(request: Request) {
     console.log('✅ Trade updated:', id);
     return NextResponse.json({ trade: data });
   } catch (error: any) {
-    console.error('❌ PUT error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ PUT /api/trades error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update trade' },
+      { status: 500 }
+    );
   }
 }
 
 // ==========================================
-// DELETE - REMOVE TRADE
+// DELETE TRADE
 // ==========================================
 export async function DELETE(request: Request) {
   try {
-    console.log('🟢 DELETE /api/trades');
+    console.log('🟢 MAIN TRADES API - DELETE /api/trades');
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -279,7 +257,10 @@ export async function DELETE(request: Request) {
     console.log('✅ Trade deleted:', id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('❌ DELETE error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ DELETE /api/trades error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete trade' },
+      { status: 500 }
+    );
   }
 }
