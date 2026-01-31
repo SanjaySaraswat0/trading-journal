@@ -1,0 +1,417 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import Link from 'next/link';
+
+export default function ImportPage() {
+  const router = useRouter();
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<any>(null);
+  const [preview, setPreview] = useState<any[]>([]);
+  const [brokerFormat, setBrokerFormat] = useState<string>('auto');
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+    setError(null);
+    setResult(null);
+
+    // Preview file
+    try {
+      const data = await parseFile(selectedFile);
+      if (data && data.length > 0) {
+        setPreview(data.slice(0, 6)); // Show first 6 rows (header + 5 data)
+      }
+    } catch (err: any) {
+      setError({ message: `Preview error: ${err.message}` });
+    }
+  };
+
+  const parseFile = async (file: File): Promise<any[]> => {
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+
+    if (fileExt === 'csv') {
+      // Parse CSV
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target?.result as string;
+            const rows = text.split('\n')
+              .filter(row => row.trim())
+              .map(row => {
+                // Better CSV parsing - handle quotes
+                const cells = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < row.length; i++) {
+                  const char = row[i];
+                  if (char === '"') {
+                    inQuotes = !inQuotes;
+                  } else if (char === ',' && !inQuotes) {
+                    cells.push(current.trim());
+                    current = '';
+                  } else {
+                    current += char;
+                  }
+                }
+                cells.push(current.trim());
+                return cells;
+              });
+            resolve(rows);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+    } else if (fileExt === 'xlsx' || fileExt === 'xls') {
+      // Parse Excel
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            
+            // Get first sheet
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Convert to array of arrays
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+              header: 1,
+              raw: false,
+              defval: '',
+              blankrows: false
+            });
+            
+            resolve(jsonData as any[]);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsBinaryString(file);
+      });
+    } else {
+      throw new Error('Unsupported file format. Please use CSV, XLSX, or XLS');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!file) {
+      setError({ message: 'Please select a file' });
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      // Parse file
+      const csvData = await parseFile(file);
+
+      if (!csvData || csvData.length < 2) {
+        throw new Error('File is empty or invalid');
+      }
+
+      console.log('📤 Sending to API:', { rows: csvData.length, format: brokerFormat });
+
+      // Send to API
+      const response = await fetch('/api/trades/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvData,
+          brokerFormat: brokerFormat === 'auto' ? undefined : brokerFormat,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw {
+          message: data.error || 'Import failed',
+          details: data.details,
+          headers: data.headers,
+          sampleRow: data.sampleRow,
+          errors: data.errors,
+        };
+      }
+
+      setResult(data);
+
+      // Redirect to trades page after 2 seconds
+      setTimeout(() => {
+        router.push('/trades');
+      }, 2000);
+    } catch (err: any) {
+      console.error('Import error:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <Link 
+            href="/dashboard" 
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900">Import Trades</h1>
+          <p className="text-gray-600 mt-2">
+            Upload CSV or Excel file from your broker
+          </p>
+        </div>
+
+        {/* Supported Formats */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-blue-900 mb-2">📋 Supported Formats</h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>✅ CSV files (.csv)</li>
+            <li>✅ Excel files (.xlsx, .xls)</li>
+            <li>✅ Zerodha, Upstox, Angel One formats</li>
+            <li>✅ Generic trading reports</li>
+          </ul>
+        </div>
+
+        {/* Required Columns */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h3 className="font-semibold text-gray-900 mb-3">Required Columns (Any of these names will work)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="bg-green-50 p-3 rounded">
+              <span className="font-medium text-green-900">✓ Symbol</span>
+              <p className="text-green-700 text-xs mt-1">
+                Symbol, Stock, Instrument, Tradingsymbol, Scrip
+              </p>
+            </div>
+            <div className="bg-green-50 p-3 rounded">
+              <span className="font-medium text-green-900">✓ Entry Price</span>
+              <p className="text-green-700 text-xs mt-1">
+                Entry Price, Buy Price, Price, Rate, Avg Price
+              </p>
+            </div>
+            <div className="bg-green-50 p-3 rounded">
+              <span className="font-medium text-green-900">✓ Quantity</span>
+              <p className="text-green-700 text-xs mt-1">
+                Quantity, Qty, Volume, Shares, Units, Lot
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            Optional: Exit price, P&L, Trade type, Entry/Exit dates - system will auto-detect these
+          </p>
+        </div>
+
+        {/* Upload Area */}
+        <div className="bg-white rounded-lg shadow-md p-8 mb-6">
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+            <FileSpreadsheet className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <span className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium">
+                <Upload className="w-4 h-4 inline mr-2" />
+                Choose File
+              </span>
+            </label>
+
+            {file && (
+              <div className="mt-4">
+                <p className="text-sm text-gray-700">
+                  Selected: <span className="font-medium">{file.name}</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  {(file.size / 1024).toFixed(2)} KB
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Broker Format Selection */}
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Broker Format (Optional - Auto-detect recommended)
+            </label>
+            <select
+              value={brokerFormat}
+              onChange={(e) => setBrokerFormat(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="auto">🤖 Auto-detect (Recommended)</option>
+              <option value="zerodha">Zerodha</option>
+              <option value="upstox">Upstox</option>
+              <option value="generic">Generic CSV</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Preview */}
+        {preview.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-3">
+              📊 Preview (First {preview.length - 1} rows)
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <tbody>
+                  {preview.map((row, i) => (
+                    <tr key={i} className={i === 0 ? 'bg-blue-100 font-semibold sticky top-0' : 'hover:bg-gray-50'}>
+                      <td className="border px-2 py-1 text-gray-500 text-center w-8">{i === 0 ? '#' : i}</td>
+                      {row.map((cell: any, j: number) => (
+                        <td key={j} className="border px-2 py-1 truncate max-w-[150px]" title={String(cell)}>
+                          {String(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              ℹ️ First row should be headers. System will auto-detect column names.
+            </p>
+          </div>
+        )}
+
+        {/* Import Button */}
+        <button
+          onClick={handleImport}
+          disabled={!file || loading}
+          className="w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-lg flex items-center justify-center gap-2 shadow-lg"
+        >
+          {loading ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              Importing...
+            </>
+          ) : (
+            <>
+              <Upload className="w-5 h-5" />
+              Import Trades
+            </>
+          )}
+        </button>
+
+        {/* Error Message - Enhanced */}
+        {error && (
+          <div className="mt-6 bg-red-50 border-2 border-red-300 rounded-lg p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-bold text-red-900 text-lg">Import Failed</h4>
+                <p className="text-sm text-red-700 mt-1">{error.message || error}</p>
+              </div>
+            </div>
+
+            {/* Debug Info */}
+            {error.details && (
+              <div className="mt-4 bg-white rounded p-3 border border-red-200">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Debug Information:</p>
+                <p className="text-xs text-gray-600">{error.details}</p>
+              </div>
+            )}
+
+            {/* Show detected headers */}
+            {error.headers && (
+              <div className="mt-3 bg-white rounded p-3 border border-red-200">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Detected Headers:</p>
+                <div className="flex flex-wrap gap-1">
+                  {error.headers.map((h: string, i: number) => (
+                    <span key={i} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                      {String(h)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sample row */}
+            {error.sampleRow && (
+              <div className="mt-3 bg-white rounded p-3 border border-red-200">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Sample Data Row:</p>
+                <div className="flex flex-wrap gap-1">
+                  {error.sampleRow.map((cell: any, i: number) => (
+                    <span key={i} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                      {String(cell)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 bg-yellow-50 border border-yellow-300 rounded p-3">
+              <p className="text-xs font-semibold text-yellow-900 mb-1">💡 Solution:</p>
+              <ul className="text-xs text-yellow-800 space-y-1 ml-4 list-disc">
+                <li>Ensure first row contains column headers</li>
+                <li>Required columns: Symbol, Entry Price, Quantity</li>
+                <li>Column names are flexible (case-insensitive)</li>
+                <li>Try selecting a different broker format above</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {result && (
+          <div className="mt-6 bg-green-50 border-2 border-green-300 rounded-lg p-6">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-green-900 text-lg">Import Successful! 🎉</h4>
+                <p className="text-sm text-green-700 mt-1">
+                  {result.message}
+                </p>
+                <div className="mt-3 space-y-1 text-sm text-green-600">
+                  <p>✓ Imported: <span className="font-semibold">{result.imported} trades</span></p>
+                  {result.skipped > 0 && <p>⚠ Skipped: {result.skipped} rows</p>}
+                  <p>📊 Format detected: <span className="font-semibold">{result.detectedFormat}</span></p>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-sm text-green-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                  <span>Redirecting to trades page...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Help Section */}
+        <div className="mt-8 bg-gray-100 rounded-lg p-6">
+          <h3 className="font-semibold text-gray-900 mb-3">💡 Import Tips</h3>
+          <ul className="text-sm text-gray-700 space-y-2">
+            <li>• <strong>First row must be headers:</strong> Symbol, Entry Price, Quantity, etc.</li>
+            <li>• <strong>Column names are flexible:</strong> "Symbol", "Stock", "Instrument" all work</li>
+            <li>• <strong>Numbers can have commas:</strong> 1,000 or 1000 both work</li>
+            <li>• <strong>Currency symbols ignored:</strong> ₹1000 or $1000 or 1000 all work</li>
+            <li>• <strong>Auto-detection:</strong> System automatically finds the right columns</li>
+            <li>• <strong>P&L calculated:</strong> If exit price provided, P&L is auto-calculated</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}

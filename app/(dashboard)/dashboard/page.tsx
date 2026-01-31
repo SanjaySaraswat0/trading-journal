@@ -436,7 +436,7 @@ export default function DashboardPage() {
             Quick Actions
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Link href="/trades/new">
               <button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all shadow-md hover:shadow-lg">
                 ➕ Add New Trade
@@ -464,6 +464,12 @@ export default function DashboardPage() {
               <Brain className="w-4 h-4" />
               {analyzingPatterns ? 'Analyzing...' : 'AI Insights'}
             </button>
+
+            <Link href="/import">
+              <button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium transition-all">
+                📤 Import CSV/Excel
+              </button>
+            </Link>
           </div>
         </div>
       </div>
