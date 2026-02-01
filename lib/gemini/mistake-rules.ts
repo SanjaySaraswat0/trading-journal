@@ -1,316 +1,402 @@
-// File: src/lib/gemini/mistake-rules.ts
-// FINAL VERSION - Complete mistake detection system
+// lib/gemini/mistake-rules.ts
+// Complete Rule-based Mistake Detection System
 
 interface Trade {
   id: string;
   symbol: string;
-  trade_type: string;
+  trade_type: 'long' | 'short';
   entry_price: number;
-  exit_price?: number | null;  // ✅ Fixed: Allow null
-  stop_loss?: number | null;   // ✅ Fixed: Allow null
-  target_price?: number | null; // ✅ Fixed: Allow null
+  exit_price?: number | null;
+  stop_loss?: number | null;
+  target_price?: number | null;
   quantity: number;
   position_size: number;
-  pnl?: number | null;         // ✅ Fixed: Allow null
+  pnl?: number | null;
   status: string;
   entry_time: string;
-  exit_time?: string | null;   // ✅ Fixed: Allow null
-  reason?: string | null;      // ✅ Fixed: Allow null
-  emotions?: string[] | null;  // ✅ Fixed: Allow null
-  tags?: string[] | null;      // ✅ Fixed: Allow null
+  exit_time?: string | null;
+  reason?: string | null;
+  emotions?: string[] | null;
+  tags?: string[] | null;
 }
 
-export interface MistakeDetection {
+interface Mistake {
   id: string;
   category: 'RISK_MANAGEMENT' | 'TIMING' | 'PSYCHOLOGY' | 'STRATEGY';
   severity: 'low' | 'medium' | 'high';
-  message: string;
+  title: string;
+  description: string;
   suggestion: string;
-  detected: boolean;
+  confidence: number;
 }
 
-// Risk Management Rules
-function checkNoStopLoss(trade: Trade): MistakeDetection {
-  return {
-    id: 'NO_STOPLOSS',
-    category: 'RISK_MANAGEMENT',
-    severity: 'high',
-    message: 'Trade entered without stop loss - high risk',
-    suggestion: 'Always set a stop loss before entering any trade to limit potential losses',
-    detected: !trade.stop_loss && trade.exit_price === undefined
-  };
-}
+// ==========================================
+// RISK MANAGEMENT CHECKS
+// ==========================================
 
-function checkWideStopLoss(trade: Trade): MistakeDetection {
-  if (!trade.stop_loss) return { ...checkNoStopLoss(trade), detected: false };
-  
-  const stopDistance = Math.abs(trade.entry_price - trade.stop_loss);
-  const riskPercent = (stopDistance / trade.entry_price) * 100;
-  
-  return {
-    id: 'WIDE_STOPLOSS',
-    category: 'RISK_MANAGEMENT',
-    severity: riskPercent > 5 ? 'high' : 'medium',
-    message: `Stop loss is ${riskPercent.toFixed(1)}% away - too wide`,
-    suggestion: 'Keep stop loss within 2-3% for better risk management',
-    detected: riskPercent > 5
-  };
-}
-
-function checkOverLeveraged(trade: Trade): MistakeDetection {
-  const isOverLeveraged = trade.position_size > 10000;
-  
-  return {
-    id: 'OVER_LEVERAGED',
-    category: 'RISK_MANAGEMENT',
-    severity: 'high',
-    message: `Position size $${trade.position_size.toFixed(2)} may be too large`,
-    suggestion: 'Risk no more than 2% of your account on a single trade',
-    detected: isOverLeveraged
-  };
-}
-
-function checkNoTarget(trade: Trade): MistakeDetection {
-  return {
-    id: 'NO_TARGET',
-    category: 'RISK_MANAGEMENT',
-    severity: 'medium',
-    message: 'No profit target set',
-    suggestion: 'Always define your profit target before entering a trade',
-    detected: !trade.target_price && trade.exit_price === undefined
-  };
-}
-
-// Timing Rules
-function checkWeekendHolding(trade: Trade): MistakeDetection {
-  const entryDate = new Date(trade.entry_time);
-  const dayOfWeek = entryDate.getDay();
-  const isFriday = dayOfWeek === 5;
-  const isLateEntry = entryDate.getHours() >= 14;
-  
-  return {
-    id: 'WEEKEND_HOLDING',
-    category: 'TIMING',
-    severity: 'medium',
-    message: 'Trade entered late on Friday - weekend gap risk',
-    suggestion: 'Avoid holding positions over the weekend to prevent gap risk',
-    detected: isFriday && isLateEntry && !trade.exit_price
-  };
-}
-
-function checkQuickExit(trade: Trade): MistakeDetection {
-  if (!trade.exit_time) return { id: 'QUICK_EXIT', category: 'TIMING', severity: 'low', message: '', suggestion: '', detected: false };
-  
-  const entryTime = new Date(trade.entry_time).getTime();
-  const exitTime = new Date(trade.exit_time).getTime();
-  const durationMinutes = (exitTime - entryTime) / (1000 * 60);
-  
-  return {
-    id: 'QUICK_EXIT',
-    category: 'TIMING',
-    severity: 'low',
-    message: `Trade closed in ${durationMinutes.toFixed(0)} minutes - possibly impulsive`,
-    suggestion: 'Give your trades time to work according to your plan',
-    detected: durationMinutes < 5 && trade.pnl != null && trade.pnl < 0
-  };
-}
-
-// Psychology Rules
-function checkRevengeTrade(trade: Trade, previousTrades: Trade[]): MistakeDetection {
-  if (previousTrades.length === 0) {
-    return { id: 'REVENGE_TRADE', category: 'PSYCHOLOGY', severity: 'high', message: '', suggestion: '', detected: false };
+function checkNoStopLoss(trade: Trade): Mistake | null {
+  if (!trade.stop_loss || trade.stop_loss === 0) {
+    return {
+      id: 'NO_STOPLOSS',
+      category: 'RISK_MANAGEMENT',
+      severity: 'high',
+      title: 'No Stop Loss Set',
+      description: `Trade ${trade.symbol} was entered without a stop loss, exposing you to unlimited risk.`,
+      suggestion: 'Always set a stop loss before entering a trade. Use 1-2% of your capital as maximum risk per trade.',
+      confidence: 100
+    };
   }
+  return null;
+}
+
+function checkWideStopLoss(trade: Trade): Mistake | null {
+  if (!trade.stop_loss) return null;
   
-  const lastTrade = previousTrades[0];
-  const isLastTradeLoss = lastTrade.pnl !== undefined && lastTrade.pnl !== null && lastTrade.pnl < 0;
+  const riskPercentage = Math.abs(
+    ((trade.entry_price - trade.stop_loss) / trade.entry_price) * 100
+  );
   
-  if (!isLastTradeLoss) {
-    return { id: 'REVENGE_TRADE', category: 'PSYCHOLOGY', severity: 'high', message: '', suggestion: '', detected: false };
+  if (riskPercentage > 5) {
+    return {
+      id: 'WIDE_STOPLOSS',
+      category: 'RISK_MANAGEMENT',
+      severity: 'medium',
+      title: 'Stop Loss Too Wide',
+      description: `Your stop loss is ${riskPercentage.toFixed(1)}% away from entry, which is too wide and increases risk.`,
+      suggestion: 'Keep stop loss within 2-3% of entry price for better risk management.',
+      confidence: 90
+    };
   }
-  
-  const lastExitTime = lastTrade.exit_time ? new Date(lastTrade.exit_time).getTime() : 0;
-  const currentEntryTime = new Date(trade.entry_time).getTime();
-  const minutesBetween = (currentEntryTime - lastExitTime) / (1000 * 60);
-  
-  const isRevengeTrade = minutesBetween < 30 && trade.position_size >= lastTrade.position_size;
-  
-  return {
-    id: 'REVENGE_TRADE',
-    category: 'PSYCHOLOGY',
-    severity: 'high',
-    message: 'Possible revenge trade after loss',
-    suggestion: 'Take a break after a losing trade. Never trade emotionally',
-    detected: isRevengeTrade || (trade.tags?.includes('revenge') || false)
-  };
+  return null;
 }
 
-function checkFOMO(trade: Trade): MistakeDetection {
-  const hasFOMOTag = trade.tags?.includes('fomo') || false;
-  const hasFOMOEmotion = trade.emotions?.includes('fomo') || trade.emotions?.includes('rushed') || false;
-  const noReason = !trade.reason || trade.reason.trim().length < 10;
-  
-  return {
-    id: 'FOMO_ENTRY',
-    category: 'PSYCHOLOGY',
-    severity: 'high',
-    message: 'FOMO (Fear of Missing Out) detected',
-    suggestion: 'Only enter trades that match your strategy. Missing a trade is better than a bad trade',
-    detected: hasFOMOTag || hasFOMOEmotion || noReason
-  };
-}
-
-function checkEmotionalTrading(trade: Trade): MistakeDetection {
-  const negativeEmotions = ['fear', 'panic', 'desperate', 'frustrated', 'angry', 'rushed'];
-  const hasNegativeEmotions = trade.emotions?.some(e => 
-    negativeEmotions.includes(e.toLowerCase())
-  ) || false;
-  
-  return {
-    id: 'EMOTIONAL_TRADING',
-    category: 'PSYCHOLOGY',
-    severity: 'medium',
-    message: 'Negative emotions detected during trade',
-    suggestion: 'Trade only when calm and following your plan. Take a break if emotional',
-    detected: hasNegativeEmotions
-  };
-}
-
-function checkOvertrading(trades: Trade[]): MistakeDetection {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const todayTrades = trades.filter(t => {
-    const tradeDate = new Date(t.entry_time);
-    tradeDate.setHours(0, 0, 0, 0);
-    return tradeDate.getTime() === today.getTime();
-  });
-  
-  return {
-    id: 'OVERTRADING',
-    category: 'PSYCHOLOGY',
-    severity: todayTrades.length > 5 ? 'high' : 'medium',
-    message: `${todayTrades.length} trades today - possible overtrading`,
-    suggestion: 'Quality over quantity. Limit daily trades to 3-5 maximum',
-    detected: todayTrades.length > 5
-  };
-}
-
-// Strategy Rules
-function checkCounterTrend(trade: Trade): MistakeDetection {
-  const hasCounterTrendTag = trade.tags?.includes('counter-trend') || false;
-  
-  return {
-    id: 'COUNTER_TREND',
-    category: 'STRATEGY',
-    severity: 'medium',
-    message: 'Trading against the trend',
-    suggestion: 'The trend is your friend. Prefer trading with the trend',
-    detected: hasCounterTrendTag
-  };
-}
-
-function checkPoorRiskReward(trade: Trade): MistakeDetection {
-  if (!trade.stop_loss || !trade.target_price) {
-    return { id: 'POOR_RISK_REWARD', category: 'STRATEGY', severity: 'low', message: '', suggestion: '', detected: false };
-  }
+function checkPoorRiskReward(trade: Trade): Mistake | null {
+  if (!trade.stop_loss || !trade.target_price) return null;
   
   const risk = Math.abs(trade.entry_price - trade.stop_loss);
   const reward = Math.abs(trade.target_price - trade.entry_price);
   const rrRatio = reward / risk;
   
-  return {
-    id: 'POOR_RISK_REWARD',
-    category: 'STRATEGY',
-    severity: rrRatio < 1.5 ? 'high' : 'medium',
-    message: `Risk-Reward ratio is ${rrRatio.toFixed(2)} - too low`,
-    suggestion: 'Aim for minimum 2:1 risk-reward ratio on all trades',
-    detected: rrRatio < 2
-  };
+  if (rrRatio < 1.5) {
+    return {
+      id: 'POOR_RR_RATIO',
+      category: 'RISK_MANAGEMENT',
+      severity: 'high',
+      title: 'Poor Risk:Reward Ratio',
+      description: `Risk:Reward ratio of 1:${rrRatio.toFixed(2)} is too low. You're risking more than you can gain.`,
+      suggestion: 'Aim for minimum 1:2 risk:reward ratio. Only take trades where potential profit is at least 2x the risk.',
+      confidence: 95
+    };
+  }
+  return null;
 }
 
-function checkNoTradePlan(trade: Trade): MistakeDetection {
-  const hasReason = trade.reason && trade.reason.trim().length > 20;
-  const hasStopLoss = !!trade.stop_loss;
-  const hasTarget = !!trade.target_price;
+function checkOverLeveraged(trade: Trade): Mistake | null {
+  const positionSize = trade.position_size;
   
-  const lacksPlanning = !hasReason || !hasStopLoss || !hasTarget;
+  // Assuming account size (you can make this dynamic)
+  const assumedAccountSize = 100000; // $100k
+  const positionPercentage = (positionSize / assumedAccountSize) * 100;
   
-  return {
-    id: 'NO_TRADE_PLAN',
-    category: 'STRATEGY',
-    severity: 'high',
-    message: 'Trade lacks proper planning',
-    suggestion: 'Always document entry reason, stop loss, and target before trading',
-    detected: lacksPlanning
-  };
+  if (positionPercentage > 10) {
+    return {
+      id: 'OVER_LEVERAGED',
+      category: 'RISK_MANAGEMENT',
+      severity: 'high',
+      title: 'Position Size Too Large',
+      description: `Position size is ${positionPercentage.toFixed(1)}% of account, which is over-leveraged.`,
+      suggestion: 'Keep position size to 2-5% of total account value to avoid catastrophic losses.',
+      confidence: 85
+    };
+  }
+  return null;
 }
 
-// Main detection function
+// ==========================================
+// TIMING CHECKS
+// ==========================================
+
+function checkWeekendTrading(trade: Trade): Mistake | null {
+  const entryDate = new Date(trade.entry_time);
+  const dayOfWeek = entryDate.getDay();
+  
+  // Saturday = 6, Sunday = 0
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return {
+      id: 'WEEKEND_TRADING',
+      category: 'TIMING',
+      severity: 'low',
+      title: 'Weekend Trading',
+      description: 'Trading on weekends often has lower liquidity and wider spreads.',
+      suggestion: 'Focus on trading during weekday market hours for better execution.',
+      confidence: 70
+    };
+  }
+  return null;
+}
+
+function checkLateDayTrading(trade: Trade): Mistake | null {
+  const entryDate = new Date(trade.entry_time);
+  const hour = entryDate.getHours();
+  
+  // After 3 PM IST (15:00)
+  if (hour >= 15) {
+    return {
+      id: 'LATE_DAY_TRADING',
+      category: 'TIMING',
+      severity: 'low',
+      title: 'Late Day Entry',
+      description: 'Entering trades in the last hour of market can be risky due to volatility.',
+      suggestion: 'Avoid entering new positions after 2:30 PM. Let existing positions run.',
+      confidence: 65
+    };
+  }
+  return null;
+}
+
+function checkQuickExit(trade: Trade): Mistake | null {
+  if (!trade.exit_time) return null;
+  
+  const entryTime = new Date(trade.entry_time).getTime();
+  const exitTime = new Date(trade.exit_time).getTime();
+  const durationMinutes = (exitTime - entryTime) / (1000 * 60);
+  
+  if (durationMinutes < 5 && trade.pnl && trade.pnl < 0) {
+    return {
+      id: 'QUICK_EXIT',
+      category: 'PSYCHOLOGY',
+      severity: 'medium',
+      title: 'Premature Exit',
+      description: `Trade was closed in ${durationMinutes.toFixed(0)} minutes with a loss. Possible panic exit.`,
+      suggestion: 'Give your trades time to work. Don\'t exit on small fluctuations unless stop loss is hit.',
+      confidence: 75
+    };
+  }
+  return null;
+}
+
+// ==========================================
+// PSYCHOLOGY CHECKS
+// ==========================================
+
+function checkRevengeTrading(trade: Trade, previousTrades: Trade[]): Mistake | null {
+  if (previousTrades.length === 0) return null;
+  
+  // Get last 3 trades
+  const recentTrades = previousTrades.slice(0, 3);
+  const lastTrade = recentTrades[0];
+  
+  if (!lastTrade || !lastTrade.pnl) return null;
+  
+  // Check if last trade was a loss
+  if (lastTrade.pnl < 0) {
+    const lastTradeTime = new Date(lastTrade.exit_time || lastTrade.entry_time).getTime();
+    const currentTradeTime = new Date(trade.entry_time).getTime();
+    const timeDiffMinutes = (currentTradeTime - lastTradeTime) / (1000 * 60);
+    
+    // If trade was taken within 30 minutes of a loss
+    if (timeDiffMinutes < 30) {
+      return {
+        id: 'REVENGE_TRADING',
+        category: 'PSYCHOLOGY',
+        severity: 'high',
+        title: 'Possible Revenge Trading',
+        description: 'This trade was taken shortly after a loss. Be careful of emotional decisions.',
+        suggestion: 'Take a 30-minute break after a losing trade. Clear your mind before the next trade.',
+        confidence: 80
+      };
+    }
+  }
+  return null;
+}
+
+function checkOvertrading(trade: Trade, previousTrades: Trade[]): Mistake | null {
+  // Check if more than 5 trades in one day
+  const todayStart = new Date(trade.entry_time);
+  todayStart.setHours(0, 0, 0, 0);
+  
+  const todayTrades = previousTrades.filter((t) => {
+    const tradeDate = new Date(t.entry_time);
+    return tradeDate >= todayStart;
+  });
+  
+  if (todayTrades.length > 5) {
+    return {
+      id: 'OVERTRADING',
+      category: 'PSYCHOLOGY',
+      severity: 'medium',
+      title: 'Overtrading Detected',
+      description: `You've taken ${todayTrades.length} trades today. Quality over quantity.`,
+      suggestion: 'Limit yourself to 2-3 high-quality setups per day. Overtrading leads to mistakes.',
+      confidence: 85
+    };
+  }
+  return null;
+}
+
+function checkEmotionalTrade(trade: Trade): Mistake | null {
+  if (!trade.emotions || trade.emotions.length === 0) return null;
+  
+  const negativeEmotions = ['fear', 'fomo', 'revenge', 'frustrated', 'angry', 'stressed'];
+  const hasNegativeEmotion = trade.emotions.some((emotion) =>
+    negativeEmotions.includes(emotion.toLowerCase())
+  );
+  
+  if (hasNegativeEmotion) {
+    return {
+      id: 'EMOTIONAL_TRADE',
+      category: 'PSYCHOLOGY',
+      severity: 'high',
+      title: 'Emotional Trading Detected',
+      description: `Emotions detected: ${trade.emotions.join(', ')}. Trading with emotions clouds judgment.`,
+      suggestion: 'Only trade when you are calm and following your plan. Take breaks when emotional.',
+      confidence: 90
+    };
+  }
+  return null;
+}
+
+// ==========================================
+// STRATEGY CHECKS
+// ==========================================
+
+function checkNoTradeReason(trade: Trade): Mistake | null {
+  if (!trade.reason || trade.reason.trim() === '' || trade.reason === 'Imported from Excel') {
+    return {
+      id: 'NO_TRADE_REASON',
+      category: 'STRATEGY',
+      severity: 'medium',
+      title: 'No Trade Reason Documented',
+      description: 'Trade was entered without documenting the reason/setup.',
+      suggestion: 'Always document why you took the trade. This helps you analyze patterns later.',
+      confidence: 100
+    };
+  }
+  return null;
+}
+
+function checkCounterTrend(trade: Trade): Mistake | null {
+  // This is a simplified check - in real scenario you'd analyze price action
+  if (trade.tags && trade.tags.includes('counter-trend')) {
+    return {
+      id: 'COUNTER_TREND',
+      category: 'STRATEGY',
+      severity: 'medium',
+      title: 'Counter-Trend Trade',
+      description: 'Trading against the trend is riskier and has lower win rate.',
+      suggestion: 'Focus on trend-following trades. "The trend is your friend."',
+      confidence: 70
+    };
+  }
+  return null;
+}
+
+function checkNoTarget(trade: Trade): Mistake | null {
+  if (!trade.target_price || trade.target_price === 0) {
+    return {
+      id: 'NO_TARGET',
+      category: 'STRATEGY',
+      severity: 'medium',
+      title: 'No Target Price Set',
+      description: 'Trade entered without a clear profit target.',
+      suggestion: 'Always have a profit target before entering. Know when to exit with gains.',
+      confidence: 85
+    };
+  }
+  return null;
+}
+
+// ==========================================
+// MAIN DETECTION FUNCTION
+// ==========================================
+
 export function detectTradeMistakes(
   trade: Trade,
-  allTrades: Trade[] = []
-): MistakeDetection[] {
-  const previousTrades = allTrades
-    .filter(t => t.id !== trade.id)
-    .sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime());
+  previousTrades: Trade[] = []
+): Mistake[] {
+  const mistakes: Mistake[] = [];
   
-  const allChecks = [
-    // Risk Management
-    checkNoStopLoss(trade),
-    checkWideStopLoss(trade),
-    checkOverLeveraged(trade),
-    checkNoTarget(trade),
-    
-    // Timing
-    checkWeekendHolding(trade),
-    checkQuickExit(trade),
-    
-    // Psychology
-    checkRevengeTrade(trade, previousTrades),
-    checkFOMO(trade),
-    checkEmotionalTrading(trade),
-    checkOvertrading([trade, ...previousTrades]),
-    
-    // Strategy
-    checkCounterTrend(trade),
-    checkPoorRiskReward(trade),
-    checkNoTradePlan(trade)
-  ];
+  // Risk Management Checks
+  const noStopLoss = checkNoStopLoss(trade);
+  if (noStopLoss) mistakes.push(noStopLoss);
   
-  return allChecks.filter(check => check.detected);
+  const wideStopLoss = checkWideStopLoss(trade);
+  if (wideStopLoss) mistakes.push(wideStopLoss);
+  
+  const poorRR = checkPoorRiskReward(trade);
+  if (poorRR) mistakes.push(poorRR);
+  
+  const overLeveraged = checkOverLeveraged(trade);
+  if (overLeveraged) mistakes.push(overLeveraged);
+  
+  // Timing Checks
+  const weekendTrading = checkWeekendTrading(trade);
+  if (weekendTrading) mistakes.push(weekendTrading);
+  
+  const lateDayTrading = checkLateDayTrading(trade);
+  if (lateDayTrading) mistakes.push(lateDayTrading);
+  
+  const quickExit = checkQuickExit(trade);
+  if (quickExit) mistakes.push(quickExit);
+  
+  // Psychology Checks
+  const revengeTrade = checkRevengeTrading(trade, previousTrades);
+  if (revengeTrade) mistakes.push(revengeTrade);
+  
+  const overtrading = checkOvertrading(trade, previousTrades);
+  if (overtrading) mistakes.push(overtrading);
+  
+  const emotionalTrade = checkEmotionalTrade(trade);
+  if (emotionalTrade) mistakes.push(emotionalTrade);
+  
+  // Strategy Checks
+  const noReason = checkNoTradeReason(trade);
+  if (noReason) mistakes.push(noReason);
+  
+  const counterTrend = checkCounterTrend(trade);
+  if (counterTrend) mistakes.push(counterTrend);
+  
+  const noTarget = checkNoTarget(trade);
+  if (noTarget) mistakes.push(noTarget);
+  
+  return mistakes;
 }
 
-// Get mistake statistics
-export function getMistakeStats(trades: Trade[]): {
-  totalMistakes: number;
-  byCategory: Record<string, number>;
-  bySeverity: Record<string, number>;
-  mostCommon: string;
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
+export function getMistakesByCategory(mistakes: Mistake[]): {
+  RISK_MANAGEMENT: Mistake[];
+  TIMING: Mistake[];
+  PSYCHOLOGY: Mistake[];
+  STRATEGY: Mistake[];
 } {
-  const allMistakes: MistakeDetection[] = [];
-  
-  trades.forEach(trade => {
-    const mistakes = detectTradeMistakes(trade, trades);
-    allMistakes.push(...mistakes);
-  });
-  
-  const byCategory: Record<string, number> = {};
-  const bySeverity: Record<string, number> = {};
-  const mistakeCount: Record<string, number> = {};
-  
-  allMistakes.forEach(mistake => {
-    byCategory[mistake.category] = (byCategory[mistake.category] || 0) + 1;
-    bySeverity[mistake.severity] = (bySeverity[mistake.severity] || 0) + 1;
-    mistakeCount[mistake.id] = (mistakeCount[mistake.id] || 0) + 1;
-  });
-  
-  const mostCommon = Object.entries(mistakeCount)
-    .sort(([, a], [, b]) => b - a)[0]?.[0] || 'None';
-  
   return {
-    totalMistakes: allMistakes.length,
-    byCategory,
-    bySeverity,
-    mostCommon
+    RISK_MANAGEMENT: mistakes.filter((m) => m.category === 'RISK_MANAGEMENT'),
+    TIMING: mistakes.filter((m) => m.category === 'TIMING'),
+    PSYCHOLOGY: mistakes.filter((m) => m.category === 'PSYCHOLOGY'),
+    STRATEGY: mistakes.filter((m) => m.category === 'STRATEGY'),
   };
+}
+
+export function getMistakesBySeverity(mistakes: Mistake[]): {
+  high: Mistake[];
+  medium: Mistake[];
+  low: Mistake[];
+} {
+  return {
+    high: mistakes.filter((m) => m.severity === 'high'),
+    medium: mistakes.filter((m) => m.severity === 'medium'),
+    low: mistakes.filter((m) => m.severity === 'low'),
+  };
+}
+
+export function calculateMistakeScore(mistakes: Mistake[]): number {
+  // Severity weights: high = 10, medium = 5, low = 2
+  return mistakes.reduce((score, mistake) => {
+    if (mistake.severity === 'high') return score + 10;
+    if (mistake.severity === 'medium') return score + 5;
+    return score + 2;
+  }, 0);
 }

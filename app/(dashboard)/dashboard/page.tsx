@@ -5,27 +5,29 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useDashboardStats } from '@/lib/hooks/use-dashboard-stats';
+import AdvancedAnalysisResults from '@/components/analysis/AdvancedAnalysisResults';
 import PsychologyTracker from '@/components/psychology/psychology-tracker';
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
-  DollarSign, 
-  Target,
-  BarChart3,
-  Calendar,
-  Zap,
-  Brain,
-  Sparkles
+  Activity, DollarSign, Target, BarChart3, Calendar, Zap, Brain, Sparkles, 
+  AlertCircle, TrendingUp, TrendingDown
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { stats, loading, error } = useDashboardStats();
-  const [showPsychology, setShowPsychology] = useState(false);
+  
+  // Advanced AI Analysis states
+  const [advancedAnalysis, setAdvancedAnalysis] = useState<any>(null);
+  const [analyzingAdvanced, setAnalyzingAdvanced] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  
+  // Pattern Analysis states
   const [patternAnalysis, setPatternAnalysis] = useState<any>(null);
   const [analyzingPatterns, setAnalyzingPatterns] = useState(false);
+  
+  // Psychology Tracker state
+  const [showPsychology, setShowPsychology] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -33,10 +35,47 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
+  // Advanced AI Analysis Function
+  const runAdvancedAnalysis = async () => {
+    console.log('🔥 Starting Advanced AI Analysis...');
+    
+    setAnalyzingAdvanced(true);
+    setAnalysisError(null);
+    
+    try {
+      const response = await fetch('/api/analysis/advanced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Advanced analysis received:', data);
+
+      if (data.success && data.analysis) {
+        setAdvancedAnalysis(data.analysis);
+      } else {
+        setAnalysisError(data.message || 'No analysis received');
+      }
+    } catch (err: any) {
+      console.error('❌ Advanced analysis error:', err);
+      setAnalysisError(err.message);
+    } finally {
+      setAnalyzingAdvanced(false);
+    }
+  };
+
+  // Pattern Analysis Function
   const analyzePatterns = async () => {
     setAnalyzingPatterns(true);
     try {
-      const response = await fetch('/api/ai/analyze-patterns', {
+      const response = await fetch('/api/analyze-patterns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ limit: 50, days: 30 })
@@ -63,15 +102,13 @@ export default function DashboardPage() {
     );
   }
 
-  if (!session) {
-    return null;
-  }
-
+  if (!session) return null;
+  
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <h3 className="text-red-800 font-semibold mb-2">Error Loading Dashboard</h3>
+          <h3 className="text-red-800 font-semibold mb-2">Error</h3>
           <p className="text-red-600">{error}</p>
         </div>
       </div>
@@ -79,25 +116,15 @@ export default function DashboardPage() {
   }
 
   const { 
-    totalTrades, 
-    winRate, 
-    totalPnL, 
-    weeklyPnL,
-    monthlyPnL,
-    avgWin,
-    avgLoss,
-    bestTrade,
-    worstTrade,
-    currentStreak,
-    riskRewardRatio,
-    recentTrades,
-    openTrades,
+    totalTrades, winRate, totalPnL, weeklyPnL, monthlyPnL,
+    avgWin, avgLoss, bestTrade, worstTrade, currentStreak,
+    riskRewardRatio, recentTrades, openTrades
   } = stats;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* NAVBAR */}
-      <nav className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10 shadow-sm">
+      <nav className="bg-white border-b px-4 py-3 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/dashboard" className="text-xl font-bold text-blue-600">
             📊 Trading Journal
@@ -116,37 +143,91 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {/* CONTENT */}
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         {/* HEADER */}
         <div className="mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-2">
-            Welcome back! Here's your trading overview.
+            Welcome back! {totalTrades} trades tracked • Win Rate: {winRate.toFixed(1)}%
           </p>
         </div>
 
-        {/* AI INSIGHTS BANNER */}
+        {/* ADVANCED AI ANALYSIS BANNER */}
         {totalTrades >= 5 && (
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 rounded-lg shadow-lg p-6">
+            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 rounded-xl shadow-2xl p-8">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
-                  <Sparkles className="w-10 h-10 text-white animate-pulse" />
+                  <div className="bg-white/20 p-3 rounded-lg">
+                    <Sparkles className="w-12 h-12 text-white animate-pulse" />
+                  </div>
                   <div className="text-white">
-                    <h3 className="text-xl font-bold">AI-Powered Insights Available!</h3>
-                    <p className="text-purple-100 text-sm">
-                      Analyze your trading patterns and get personalized recommendations
+                    <h3 className="text-2xl font-bold mb-1">🔥 Advanced AI Analysis Ready!</h3>
+                    <p className="text-purple-100 mb-2">
+                      Discover exactly where you make mistakes & when to trade
                     </p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="bg-white/20 px-2 py-1 rounded">⏰ Time-based patterns</span>
+                      <span className="bg-white/20 px-2 py-1 rounded">🎯 Setup analysis</span>
+                      <span className="bg-white/20 px-2 py-1 rounded">🧠 Psychology insights</span>
+                      <span className="bg-white/20 px-2 py-1 rounded">📈 30-day plan</span>
+                    </div>
                   </div>
                 </div>
                 <button
-                  onClick={analyzePatterns}
-                  disabled={analyzingPatterns}
-                  className="px-6 py-3 bg-white text-purple-600 rounded-lg hover:bg-purple-50 font-semibold disabled:opacity-50 flex items-center gap-2"
+                  onClick={runAdvancedAnalysis}
+                  disabled={analyzingAdvanced}
+                  className="px-8 py-4 bg-white text-purple-600 rounded-xl hover:bg-purple-50 font-bold disabled:opacity-50 flex items-center gap-3 shadow-lg transition-all transform hover:scale-105"
                 >
-                  <Brain className="w-5 h-5" />
-                  {analyzingPatterns ? 'Analyzing...' : 'Analyze Patterns'}
+                  <Brain className="w-6 h-6" />
+                  <span>
+                    {analyzingAdvanced ? (
+                      <>
+                        <span className="animate-pulse">Analyzing...</span>
+                        <div className="text-xs text-purple-400">This may take 10-15 seconds</div>
+                      </>
+                    ) : (
+                      <>
+                        <span>Get Advanced Analysis</span>
+                        <div className="text-xs text-purple-400">{totalTrades} trades ready</div>
+                      </>
+                    )}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MINIMUM TRADES WARNING */}
+        {totalTrades < 5 && (
+          <div className="mb-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="font-semibold text-yellow-900">Need More Trades for AI Analysis</h4>
+                <p className="text-sm text-yellow-700">
+                  You have {totalTrades} trades. Need at least 5 trades for advanced AI analysis.
+                  Add {5 - totalTrades} more trade{5 - totalTrades > 1 ? 's' : ''} to unlock advanced insights!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ERROR MESSAGE */}
+        {analysisError && (
+          <div className="mb-8 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="font-semibold text-red-900">Analysis Failed</h4>
+                <p className="text-sm text-red-700">{analysisError}</p>
+                <button
+                  onClick={runAdvancedAnalysis}
+                  className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+                >
+                  Try Again
                 </button>
               </div>
             </div>
@@ -163,7 +244,7 @@ export default function DashboardPage() {
               </h3>
               <button
                 onClick={() => setPatternAnalysis(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 text-2xl"
               >
                 ×
               </button>
@@ -220,35 +301,35 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* MAIN STATS GRID */}
+        {/* STATS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatsCard
-            icon={<Activity className="w-6 h-6" />}
-            title="Total Trades"
-            value={totalTrades}
-            subtitle={`${openTrades} open`}
-            color="blue"
+          <StatsCard 
+            icon={<Activity className="w-6 h-6" />} 
+            title="Total Trades" 
+            value={totalTrades} 
+            subtitle={`${openTrades} open`} 
+            color="blue" 
           />
-          <StatsCard
-            icon={<Target className="w-6 h-6" />}
-            title="Win Rate"
-            value={`${winRate.toFixed(1)}%`}
-            subtitle={winRate >= 50 ? 'Above average' : 'Below 50%'}
-            color={winRate >= 50 ? 'green' : 'red'}
+          <StatsCard 
+            icon={<Target className="w-6 h-6" />} 
+            title="Win Rate" 
+            value={`${winRate.toFixed(1)}%`} 
+            subtitle={winRate >= 50 ? 'Above average' : 'Below 50%'} 
+            color={winRate >= 50 ? 'green' : 'red'} 
           />
-          <StatsCard
-            icon={<DollarSign className="w-6 h-6" />}
-            title="Total P&L"
-            value={`$${totalPnL.toFixed(2)}`}
-            subtitle={totalPnL >= 0 ? 'Profitable' : 'In loss'}
-            color={totalPnL >= 0 ? 'green' : 'red'}
+          <StatsCard 
+            icon={<DollarSign className="w-6 h-6" />} 
+            title="Total P&L" 
+            value={`₹${totalPnL.toFixed(2)}`} 
+            subtitle={totalPnL >= 0 ? 'Profitable' : 'In loss'} 
+            color={totalPnL >= 0 ? 'green' : 'red'} 
           />
-          <StatsCard
-            icon={<BarChart3 className="w-6 h-6" />}
-            title="Risk:Reward"
-            value={`1:${riskRewardRatio.toFixed(2)}`}
-            subtitle={riskRewardRatio >= 2 ? 'Good ratio' : 'Improve R:R'}
-            color={riskRewardRatio >= 2 ? 'green' : 'orange'}
+          <StatsCard 
+            icon={<BarChart3 className="w-6 h-6" />} 
+            title="Risk:Reward" 
+            value={`1:${riskRewardRatio.toFixed(2)}`} 
+            subtitle={riskRewardRatio >= 2 ? 'Good' : 'Improve'} 
+            color={riskRewardRatio >= 2 ? 'green' : 'orange'} 
           />
         </div>
 
@@ -260,7 +341,7 @@ export default function DashboardPage() {
               <h3 className="text-sm font-medium text-blue-900">This Week</h3>
             </div>
             <p className={`text-3xl font-bold ${weeklyPnL >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-              ${weeklyPnL.toFixed(2)}
+              ₹{weeklyPnL.toFixed(2)}
             </p>
             <p className="text-xs text-blue-700 mt-1">Last 7 days</p>
           </div>
@@ -271,7 +352,7 @@ export default function DashboardPage() {
               <h3 className="text-sm font-medium text-purple-900">This Month</h3>
             </div>
             <p className={`text-3xl font-bold ${monthlyPnL >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-              ${monthlyPnL.toFixed(2)}
+              ₹{monthlyPnL.toFixed(2)}
             </p>
             <p className="text-xs text-purple-700 mt-1">Last 30 days</p>
           </div>
@@ -314,39 +395,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* AI WEEKLY REPORT & CSV IMPORT CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Weekly Report Card */}
-          <Link href="/reports">
-            <div className="bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm text-purple-100">Weekly Report</p>
-                  <p className="text-3xl font-bold text-white">AI Insights</p>
-                </div>
-                <div className="text-5xl">🤖</div>
-              </div>
-              <p className="text-purple-100 text-sm">Get AI analysis →</p>
-            </div>
-          </Link>
-
-          {/* CSV Import Card */}
-          <Link href="/import">
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm text-green-100">Bulk Import</p>
-                  <p className="text-3xl font-bold text-white">CSV Upload</p>
-                </div>
-                <div className="text-5xl">📤</div>
-              </div>
-              <p className="text-green-100 text-sm">
-                Import from Zerodha/Upstox →
-              </p>
-            </div>
-          </Link>
-        </div>
-
         {/* PSYCHOLOGY TRACKER SECTION */}
         <div className="mb-8">
           <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg shadow-lg p-4">
@@ -379,19 +427,19 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Average Win</span>
-                <span className="text-lg font-bold text-green-600">${avgWin.toFixed(2)}</span>
+                <span className="text-lg font-bold text-green-600">₹{avgWin.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Average Loss</span>
-                <span className="text-lg font-bold text-red-600">${avgLoss.toFixed(2)}</span>
+                <span className="text-lg font-bold text-red-600">₹{avgLoss.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between border-t pt-4">
                 <span className="text-sm text-gray-600">Best Trade</span>
-                <span className="text-lg font-bold text-green-600">${bestTrade.toFixed(2)}</span>
+                <span className="text-lg font-bold text-green-600">₹{bestTrade.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Worst Trade</span>
-                <span className="text-lg font-bold text-red-600">${worstTrade.toFixed(2)}</span>
+                <span className="text-lg font-bold text-red-600">₹{worstTrade.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -419,7 +467,7 @@ export default function DashboardPage() {
                         trade.pnl && trade.pnl < 0 ? 'text-red-600' : 
                         'text-gray-600'
                       }`}>
-                        {trade.pnl ? `$${trade.pnl.toFixed(2)}` : 'Open'}
+                        {trade.pnl ? `₹${trade.pnl.toFixed(2)}` : 'Open'}
                       </p>
                       <p className="text-xs text-gray-500">{trade.status}</p>
                     </div>
@@ -432,65 +480,45 @@ export default function DashboardPage() {
 
         {/* QUICK ACTIONS */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Quick Actions
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Link href="/trades/new">
-              <button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all shadow-md hover:shadow-lg">
-                ➕ Add New Trade
-              </button>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <Link href="/trades/new" className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 font-medium text-center transition">
+              ➕ Add Trade
             </Link>
-
-            <Link href="/trades">
-              <button className="w-full bg-gray-200 text-gray-900 px-4 py-3 rounded-lg hover:bg-gray-300 font-medium transition-colors">
-                📊 View All Trades
-              </button>
+            <Link href="/trades" className="w-full bg-gray-200 text-gray-900 px-4 py-3 rounded-lg hover:bg-gray-300 font-medium text-center transition">
+              📊 View All
             </Link>
-
-            <button
-              onClick={() => setShowPsychology(true)}
-              className="w-full bg-purple-200 text-purple-900 px-4 py-3 rounded-lg hover:bg-purple-300 font-medium transition-colors"
-            >
-              🧠 Psychology
-            </button>
-
             <button
               onClick={analyzePatterns}
               disabled={analyzingPatterns || totalTrades < 5}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-purple-200 text-purple-900 px-4 py-3 rounded-lg hover:bg-purple-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
             >
               <Brain className="w-4 h-4" />
               {analyzingPatterns ? 'Analyzing...' : 'AI Insights'}
             </button>
-
-            <Link href="/import">
-              <button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium transition-all">
-                📤 Import CSV/Excel
-              </button>
+            <Link href="/import" className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 font-medium text-center transition">
+              📤 Import
+            </Link>
+            <Link href="/psychology" className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 font-medium text-center transition">
+              🧠 Psychology
             </Link>
           </div>
         </div>
       </div>
+
+      {/* ADVANCED ANALYSIS RESULTS MODAL */}
+      {advancedAnalysis && (
+        <AdvancedAnalysisResults
+          analysis={advancedAnalysis}
+          onClose={() => setAdvancedAnalysis(null)}
+        />
+      )}
     </div>
   );
 }
 
-function StatsCard({ 
-  icon, 
-  title, 
-  value, 
-  subtitle, 
-  color 
-}: { 
-  icon: React.ReactNode; 
-  title: string; 
-  value: string | number; 
-  subtitle: string; 
-  color: 'blue' | 'green' | 'red' | 'orange';
-}) {
-  const colorClasses = {
+function StatsCard({ icon, title, value, subtitle, color }: any) {
+  const colors: any = {
     blue: 'from-blue-50 to-blue-100 border-blue-200 text-blue-600',
     green: 'from-green-50 to-green-100 border-green-200 text-green-600',
     red: 'from-red-50 to-red-100 border-red-200 text-red-600',
@@ -498,11 +526,9 @@ function StatsCard({
   };
 
   return (
-    <div className={`bg-gradient-to-br ${colorClasses[color]} rounded-lg shadow p-6 border`}>
+    <div className={`bg-gradient-to-br ${colors[color]} rounded-lg shadow p-6 border`}>
       <div className="flex items-center gap-2 mb-2">
-        <div className={colorClasses[color].split(' ')[2]}>
-          {icon}
-        </div>
+        <div className={colors[color].split(' ')[2]}>{icon}</div>
         <h3 className="text-sm font-medium text-gray-700">{title}</h3>
       </div>
       <p className="text-3xl font-bold text-gray-900">{value}</p>
