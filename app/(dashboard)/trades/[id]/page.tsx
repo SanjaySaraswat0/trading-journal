@@ -6,13 +6,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 // Next.js 15+ - params is now a Promise
-export default async function TradeDetailPage({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
+export default async function TradeDetailPage({
+  params
+}: {
+  params: Promise<{ id: string }>
 }) {
   const session = await getServerSession(authOptions);
-  
+
   if (!session?.user?.id) {
     redirect('/login');
   }
@@ -21,7 +21,7 @@ export default async function TradeDetailPage({
   const { id } = await params;
 
   const supabase = createServiceClient();
-  
+
   const { data: trade, error } = await supabase
     .from('trades')
     .select('*')
@@ -32,6 +32,9 @@ export default async function TradeDetailPage({
   if (error || !trade) {
     notFound();
   }
+
+  // Type assertion to fix TypeScript inference
+  const tradeData = trade as any;
 
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return '--';
@@ -68,37 +71,34 @@ export default async function TradeDetailPage({
           {/* Header */}
           <div className="flex justify-between items-start mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{trade.symbol}</h1>
-              <p className="text-gray-600 mt-1 capitalize">{trade.asset_type} · {trade.trade_type}</p>
+              <h1 className="text-3xl font-bold text-gray-900">{tradeData.symbol}</h1>
+              <p className="text-gray-600 mt-1 capitalize">{tradeData.asset_type} · {tradeData.trade_type}</p>
             </div>
-            <span className={`px-4 py-2 rounded-lg font-medium capitalize ${
-              trade.status === 'win' ? 'bg-green-100 text-green-800' :
-              trade.status === 'loss' ? 'bg-red-100 text-red-800' :
-              trade.status === 'open' ? 'bg-blue-100 text-blue-800' :
-              'bg-gray-100 text-gray-800'
-            }`}>
-              {trade.status}
+            <span className={`px-4 py-2 rounded-lg font-medium capitalize ${tradeData.status === 'win' ? 'bg-green-100 text-green-800' :
+              tradeData.status === 'loss' ? 'bg-red-100 text-red-800' :
+                tradeData.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                  'bg-gray-100 text-gray-800'
+              }`}>
+              {tradeData.status}
             </span>
           </div>
 
           {/* P&L Display */}
-          {trade.pnl !== null && (
+          {tradeData.pnl !== null && (
             <div className="bg-gray-50 rounded-lg p-6 mb-8">
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Profit/Loss</p>
-                  <p className={`text-3xl font-bold ${
-                    trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {formatCurrency(trade.pnl)}
+                  <p className={`text-3xl font-bold ${tradeData.pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                    {formatCurrency(tradeData.pnl)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Return %</p>
-                  <p className={`text-3xl font-bold ${
-                    trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {trade.pnl_percentage?.toFixed(2)}%
+                  <p className={`text-3xl font-bold ${tradeData.pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                    {tradeData.pnl_percentage?.toFixed(2)}%
                   </p>
                 </div>
               </div>
@@ -110,79 +110,79 @@ export default async function TradeDetailPage({
             <div>
               <p className="text-sm text-gray-600 mb-1">Entry Price</p>
               <p className="text-lg font-semibold text-gray-900">
-                ${Number(trade.entry_price).toFixed(2)}
+                {Number(tradeData.entry_price).toFixed(2)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Exit Price</p>
               <p className="text-lg font-semibold text-gray-900">
-                {trade.exit_price ? `$${Number(trade.exit_price).toFixed(2)}` : '--'}
+                {tradeData.exit_price ? Number(tradeData.exit_price).toFixed(2) : '--'}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Stop Loss</p>
               <p className="text-lg font-semibold text-gray-900">
-                {trade.stop_loss ? `$${Number(trade.stop_loss).toFixed(2)}` : '--'}
+                {tradeData.stop_loss ? Number(tradeData.stop_loss).toFixed(2) : '--'}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Target Price</p>
               <p className="text-lg font-semibold text-gray-900">
-                {trade.target_price ? `$${Number(trade.target_price).toFixed(2)}` : '--'}
+                {tradeData.target_price ? Number(tradeData.target_price).toFixed(2) : '--'}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Quantity</p>
-              <p className="text-lg font-semibold text-gray-900">{trade.quantity}</p>
+              <p className="text-lg font-semibold text-gray-900">{tradeData.quantity}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Position Size</p>
               <p className="text-lg font-semibold text-gray-900">
-                {formatCurrency(Number(trade.position_size))}
+                {formatCurrency(Number(tradeData.position_size))}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Timeframe</p>
               <p className="text-lg font-semibold text-gray-900 uppercase">
-                {trade.timeframe || '--'}
+                {tradeData.timeframe || '--'}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Setup Type</p>
               <p className="text-lg font-semibold text-gray-900 capitalize">
-                {trade.setup_type || '--'}
+                {tradeData.setup_type || '--'}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Entry Time</p>
               <p className="text-lg font-semibold text-gray-900">
-                {formatDate(trade.entry_time)}
+                {formatDate(tradeData.entry_time)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Exit Time</p>
               <p className="text-lg font-semibold text-gray-900">
-                {formatDate(trade.exit_time)}
+                {formatDate(tradeData.exit_time)}
               </p>
             </div>
           </div>
 
           {/* Trade Reason */}
-          {trade.reason && (
+          {tradeData.reason && (
             <div className="mb-8">
               <p className="text-sm text-gray-600 mb-2">Trade Reason</p>
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-900 whitespace-pre-wrap">{trade.reason}</p>
+                <p className="text-gray-900 whitespace-pre-wrap">{tradeData.reason}</p>
               </div>
             </div>
           )}
 
           {/* Screenshot */}
-          {trade.screenshot_url && (
+          {tradeData.screenshot_url && (
             <div className="mb-8">
               <p className="text-sm text-gray-600 mb-2">Screenshot</p>
               <img
-                src={trade.screenshot_url}
+                src={tradeData.screenshot_url}
                 alt="Trade screenshot"
                 className="w-full rounded-lg border border-gray-200"
               />
@@ -191,11 +191,11 @@ export default async function TradeDetailPage({
 
           {/* Emotions & Tags */}
           <div className="grid grid-cols-2 gap-6">
-            {trade.emotions && trade.emotions.length > 0 && (
+            {tradeData.emotions && tradeData.emotions.length > 0 && (
               <div>
                 <p className="text-sm text-gray-600 mb-2">Emotions</p>
                 <div className="flex flex-wrap gap-2">
-                  {trade.emotions.map((emotion, i) => (
+                  {tradeData.emotions.map((emotion: any, i: number) => (
                     <span key={i} className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
                       {emotion}
                     </span>
@@ -203,11 +203,11 @@ export default async function TradeDetailPage({
                 </div>
               </div>
             )}
-            {trade.tags && trade.tags.length > 0 && (
+            {tradeData.tags && tradeData.tags.length > 0 && (
               <div>
                 <p className="text-sm text-gray-600 mb-2">Tags</p>
                 <div className="flex flex-wrap gap-2">
-                  {trade.tags.map((tag, i) => (
+                  {tradeData.tags.map((tag: any, i: number) => (
                     <span key={i} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
                       {tag}
                     </span>

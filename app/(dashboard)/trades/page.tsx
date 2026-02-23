@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TradeDetailModal from '@/components/trades/trade-detail-modal';
 import TradeChartModal from '@/components/trades/trade-chart-modal';
-import { 
-  Search, 
-  ArrowUpDown, 
+import {
+  Search,
+  ArrowUpDown,
   Filter,
   BarChart3,
   TrendingUp,
@@ -91,7 +91,7 @@ export default function TradesPage() {
     try {
       setLoading(true);
       const response = await fetch('/api/trades');
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
@@ -113,20 +113,20 @@ export default function TradesPage() {
     const totalTrades = tradesList.length;
     const openPositions = tradesList.filter((t: Trade) => t.status === 'open').length;
     const closedTrades = tradesList.filter((t: Trade) => t.status !== 'open');
-    
+
     const totalPnL = tradesList.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    
+
     const winTrades = tradesList.filter((t: Trade) => t.status === 'win');
     const lossTrades = tradesList.filter((t: Trade) => t.status === 'loss');
-    
+
     const avgWin = winTrades.length > 0
       ? winTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / winTrades.length
       : 0;
-    
+
     const avgLoss = lossTrades.length > 0
       ? lossTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / lossTrades.length
       : 0;
-    
+
     const winRate = closedTrades.length > 0
       ? (winTrades.length / closedTrades.length) * 100
       : 0;
@@ -161,7 +161,7 @@ export default function TradesPage() {
 
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       if (sortBy === 'date') {
         comparison = new Date(a.entry_time).getTime() - new Date(b.entry_time).getTime();
       } else if (sortBy === 'pnl') {
@@ -267,10 +267,10 @@ export default function TradesPage() {
               <span className="text-sm text-gray-600">Total P&L</span>
             </div>
             <p className={`text-2xl font-bold ${stats.totalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${stats.totalPnL.toFixed(2)}
+              {stats.totalPnL.toFixed(2)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Avg Win: ${stats.avgWin.toFixed(2)} · Avg Loss: ${stats.avgLoss.toFixed(2)}
+              Avg Win: {stats.avgWin.toFixed(2)} · Avg Loss: {stats.avgLoss.toFixed(2)}
             </p>
           </div>
 
@@ -312,41 +312,36 @@ export default function TradesPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setFilterStatus('all')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                  filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium text-sm ${filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 📊 All
               </button>
               <button
                 onClick={() => setFilterStatus('open')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                  filterStatus === 'open' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium text-sm ${filterStatus === 'open' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 🔓 Open
               </button>
               <button
                 onClick={() => setFilterStatus('closed')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                  filterStatus === 'closed' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium text-sm ${filterStatus === 'closed' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 🔒 Closed
               </button>
               <button
                 onClick={() => setFilterStatus('win')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                  filterStatus === 'win' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium text-sm ${filterStatus === 'win' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 ✅ Winners
               </button>
               <button
                 onClick={() => setFilterStatus('loss')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                  filterStatus === 'loss' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium text-sm ${filterStatus === 'loss' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 ❌ Losers
               </button>
@@ -364,7 +359,7 @@ export default function TradesPage() {
               <option value="pnl">P&L</option>
               <option value="symbol">Symbol</option>
             </select>
-            
+
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               className="p-2 hover:bg-gray-100 rounded-lg"
@@ -436,34 +431,31 @@ export default function TradesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          trade.trade_type === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${trade.trade_type === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
                           {trade.trade_type === 'long' ? '🟢 LONG' : '🔴 SHORT'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm font-medium">${trade.entry_price.toFixed(2)}</p>
+                        <p className="text-sm font-medium">{trade.entry_price.toFixed(2)}</p>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm font-medium">
-                          {trade.exit_price ? `$${trade.exit_price.toFixed(2)}` : '-'}
+                          {trade.exit_price ? trade.exit_price.toFixed(2) : '-'}
                         </p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className={`text-sm font-bold ${
-                          trade.pnl && trade.pnl > 0 ? 'text-green-600' :
+                        <p className={`text-sm font-bold ${trade.pnl && trade.pnl > 0 ? 'text-green-600' :
                           trade.pnl && trade.pnl < 0 ? 'text-red-600' : 'text-gray-600'
-                        }`}>
-                          {trade.pnl ? `$${trade.pnl.toFixed(2)}` : '-'}
+                          }`}>
+                          {trade.pnl ? trade.pnl.toFixed(2) : '-'}
                         </p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          trade.status === 'win' ? 'bg-green-100 text-green-800' :
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${trade.status === 'win' ? 'bg-green-100 text-green-800' :
                           trade.status === 'loss' ? 'bg-red-100 text-red-800' :
-                          trade.status === 'open' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
+                            trade.status === 'open' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
                           {trade.status.toUpperCase()}
                         </span>
                       </td>
@@ -517,10 +509,9 @@ export default function TradesPage() {
                     <h3 className="text-lg font-bold text-gray-900">{trade.symbol}</h3>
                     <p className="text-xs text-gray-500">{trade.setup_type || 'No setup'}</p>
                   </div>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    trade.status === 'win' ? 'bg-green-100 text-green-800' :
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${trade.status === 'win' ? 'bg-green-100 text-green-800' :
                     trade.status === 'loss' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                  }`}>
+                    }`}>
                     {trade.status}
                   </span>
                 </div>
@@ -528,13 +519,13 @@ export default function TradesPage() {
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Entry:</span>
-                    <span className="font-medium">${trade.entry_price.toFixed(2)}</span>
+                    <span className="font-medium">{trade.entry_price.toFixed(2)}</span>
                   </div>
                   {trade.pnl !== null && trade.pnl !== undefined && (
                     <div className="flex justify-between text-sm pt-2 border-t">
                       <span className="text-gray-600">P&L:</span>
                       <span className={`font-bold ${trade.pnl > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${trade.pnl.toFixed(2)}
+                        {trade.pnl.toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -592,7 +583,6 @@ export default function TradesPage() {
       {chartTrade && (
         <TradeChartModal
           trade={chartTrade}
-          isOpen={true}
           onClose={() => setChartTrade(null)}
         />
       )}

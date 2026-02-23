@@ -6,9 +6,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useDashboardStats } from '@/lib/hooks/use-dashboard-stats';
 import AdvancedAnalysisResults from '@/components/analysis/AdvancedAnalysisResults';
+import AdvancedAnalysisPanel from '@/components/dashboard/AdvancedAnalysisPanel';
 import PsychologyTracker from '@/components/psychology/psychology-tracker';
-import { 
-  Activity, DollarSign, Target, BarChart3, Calendar, Zap, Brain, Sparkles, 
+import {
+  Activity, DollarSign, Target, BarChart3, Calendar, Zap, Brain, Sparkles,
   AlertCircle, TrendingUp, TrendingDown
 } from 'lucide-react';
 
@@ -16,18 +17,21 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { stats, loading, error } = useDashboardStats();
-  
+
   // Advanced AI Analysis states
   const [advancedAnalysis, setAdvancedAnalysis] = useState<any>(null);
   const [analyzingAdvanced, setAnalyzingAdvanced] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  
+
   // Pattern Analysis states
   const [patternAnalysis, setPatternAnalysis] = useState<any>(null);
   const [analyzingPatterns, setAnalyzingPatterns] = useState(false);
-  
+
   // Psychology Tracker state
   const [showPsychology, setShowPsychology] = useState(false);
+
+  // Advanced Analysis Panel state
+  const [showAdvancedPanel, setShowAdvancedPanel] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -38,10 +42,10 @@ export default function DashboardPage() {
   // Advanced AI Analysis Function
   const runAdvancedAnalysis = async () => {
     console.log('🔥 Starting Advanced AI Analysis...');
-    
+
     setAnalyzingAdvanced(true);
     setAnalysisError(null);
-    
+
     try {
       const response = await fetch('/api/analysis/advanced', {
         method: 'POST',
@@ -75,7 +79,7 @@ export default function DashboardPage() {
   const analyzePatterns = async () => {
     setAnalyzingPatterns(true);
     try {
-      const response = await fetch('/api/analyze-patterns', {
+      const response = await fetch('/api/ai/analyze-patterns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ limit: 50, days: 30 })
@@ -103,7 +107,7 @@ export default function DashboardPage() {
   }
 
   if (!session) return null;
-  
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -115,7 +119,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { 
+  const {
     totalTrades, winRate, totalPnL, weeklyPnL, monthlyPnL,
     avgWin, avgLoss, bestTrade, worstTrade, currentStreak,
     riskRewardRatio, recentTrades, openTrades
@@ -129,7 +133,15 @@ export default function DashboardPage() {
           <Link href="/dashboard" className="text-xl font-bold text-blue-600">
             📊 Trading Journal
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link
+              href="/market-outlook"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold 
+                         bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
+                         rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm"
+            >
+              🌐 Market Outlook
+            </Link>
             <span className="text-sm text-gray-600">
               {session.user?.name || session.user?.email}
             </span>
@@ -142,6 +154,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </nav>
+
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         {/* HEADER */}
@@ -164,31 +177,30 @@ export default function DashboardPage() {
                   <div className="text-white">
                     <h3 className="text-2xl font-bold mb-1">🔥 Advanced AI Analysis Ready!</h3>
                     <p className="text-purple-100 mb-2">
-                      Discover exactly where you make mistakes & when to trade
+                      Discover patterns, mistakes, strengths & get actionable recommendations
                     </p>
                     <div className="flex flex-wrap gap-2 text-xs">
                       <span className="bg-white/20 px-2 py-1 rounded">⏰ Time-based patterns</span>
                       <span className="bg-white/20 px-2 py-1 rounded">🎯 Setup analysis</span>
-                      <span className="bg-white/20 px-2 py-1 rounded">🧠 Psychology insights</span>
-                      <span className="bg-white/20 px-2 py-1 rounded">📈 30-day plan</span>
+                      <span className="bg-white/20 px-2 py-1 rounded">🧠 Behavioral insights</span>
+                      <span className="bg-white/20 px-2 py-1 rounded">📊 Action items</span>
                     </div>
                   </div>
                 </div>
                 <button
-                  onClick={runAdvancedAnalysis}
-                  disabled={analyzingAdvanced}
-                  className="px-8 py-4 bg-white text-purple-600 rounded-xl hover:bg-purple-50 font-bold disabled:opacity-50 flex items-center gap-3 shadow-lg transition-all transform hover:scale-105"
+                  onClick={() => setShowAdvancedPanel(!showAdvancedPanel)}
+                  className="px-8 py-4 bg-white text-purple-600 rounded-xl hover:bg-purple-50 font-bold flex items-center gap-3 shadow-lg transition-all transform hover:scale-105"
                 >
                   <Brain className="w-6 h-6" />
                   <span>
-                    {analyzingAdvanced ? (
+                    {showAdvancedPanel ? (
                       <>
-                        <span className="animate-pulse">Analyzing...</span>
-                        <div className="text-xs text-purple-400">This may take 10-15 seconds</div>
+                        <span>Hide Analysis</span>
+                        <div className="text-xs text-purple-400">Click to close</div>
                       </>
                     ) : (
                       <>
-                        <span>Get Advanced Analysis</span>
+                        <span>Show Advanced Analysis</span>
                         <div className="text-xs text-purple-400">{totalTrades} trades ready</div>
                       </>
                     )}
@@ -231,6 +243,13 @@ export default function DashboardPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ✅ NEW: ADVANCED ANALYSIS PANEL */}
+        {showAdvancedPanel && (
+          <div className="mb-8">
+            <AdvancedAnalysisPanel />
           </div>
         )}
 
@@ -303,33 +322,33 @@ export default function DashboardPage() {
 
         {/* STATS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatsCard 
-            icon={<Activity className="w-6 h-6" />} 
-            title="Total Trades" 
-            value={totalTrades} 
-            subtitle={`${openTrades} open`} 
-            color="blue" 
+          <StatsCard
+            icon={<Activity className="w-6 h-6" />}
+            title="Total Trades"
+            value={totalTrades}
+            subtitle={`${openTrades} open`}
+            color="blue"
           />
-          <StatsCard 
-            icon={<Target className="w-6 h-6" />} 
-            title="Win Rate" 
-            value={`${winRate.toFixed(1)}%`} 
-            subtitle={winRate >= 50 ? 'Above average' : 'Below 50%'} 
-            color={winRate >= 50 ? 'green' : 'red'} 
+          <StatsCard
+            icon={<Target className="w-6 h-6" />}
+            title="Win Rate"
+            value={`${winRate.toFixed(1)}%`}
+            subtitle={winRate >= 50 ? 'Above average' : 'Below 50%'}
+            color={winRate >= 50 ? 'green' : 'red'}
           />
-          <StatsCard 
-            icon={<DollarSign className="w-6 h-6" />} 
-            title="Total P&L" 
-            value={`₹${totalPnL.toFixed(2)}`} 
-            subtitle={totalPnL >= 0 ? 'Profitable' : 'In loss'} 
-            color={totalPnL >= 0 ? 'green' : 'red'} 
+          <StatsCard
+            icon={<DollarSign className="w-6 h-6" />}
+            title="Total P&L"
+            value={totalPnL.toFixed(2)}
+            subtitle={totalPnL >= 0 ? 'Profitable' : 'In loss'}
+            color={totalPnL >= 0 ? 'green' : 'red'}
           />
-          <StatsCard 
-            icon={<BarChart3 className="w-6 h-6" />} 
-            title="Risk:Reward" 
-            value={`1:${riskRewardRatio.toFixed(2)}`} 
-            subtitle={riskRewardRatio >= 2 ? 'Good' : 'Improve'} 
-            color={riskRewardRatio >= 2 ? 'green' : 'orange'} 
+          <StatsCard
+            icon={<BarChart3 className="w-6 h-6" />}
+            title="Risk:Reward"
+            value={`1:${riskRewardRatio.toFixed(2)}`}
+            subtitle={riskRewardRatio >= 2 ? 'Good' : 'Improve'}
+            color={riskRewardRatio >= 2 ? 'green' : 'orange'}
           />
         </div>
 
@@ -341,7 +360,7 @@ export default function DashboardPage() {
               <h3 className="text-sm font-medium text-blue-900">This Week</h3>
             </div>
             <p className={`text-3xl font-bold ${weeklyPnL >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-              ₹{weeklyPnL.toFixed(2)}
+              {weeklyPnL.toFixed(2)}
             </p>
             <p className="text-xs text-blue-700 mt-1">Last 7 days</p>
           </div>
@@ -352,45 +371,40 @@ export default function DashboardPage() {
               <h3 className="text-sm font-medium text-purple-900">This Month</h3>
             </div>
             <p className={`text-3xl font-bold ${monthlyPnL >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-              ₹{monthlyPnL.toFixed(2)}
+              {monthlyPnL.toFixed(2)}
             </p>
             <p className="text-xs text-purple-700 mt-1">Last 30 days</p>
           </div>
 
-          <div className={`bg-gradient-to-br ${
-            currentStreak.type === 'win' ? 'from-green-50 to-green-100 border-green-200' :
+          <div className={`bg-gradient-to-br ${currentStreak.type === 'win' ? 'from-green-50 to-green-100 border-green-200' :
             currentStreak.type === 'loss' ? 'from-red-50 to-red-100 border-red-200' :
-            'from-gray-50 to-gray-100 border-gray-200'
-          } rounded-lg shadow p-6 border`}>
+              'from-gray-50 to-gray-100 border-gray-200'
+            } rounded-lg shadow p-6 border`}>
             <div className="flex items-center gap-2 mb-2">
-              <Zap className={`w-5 h-5 ${
-                currentStreak.type === 'win' ? 'text-green-600' :
+              <Zap className={`w-5 h-5 ${currentStreak.type === 'win' ? 'text-green-600' :
                 currentStreak.type === 'loss' ? 'text-red-600' :
-                'text-gray-600'
-              }`} />
-              <h3 className={`text-sm font-medium ${
-                currentStreak.type === 'win' ? 'text-green-900' :
+                  'text-gray-600'
+                }`} />
+              <h3 className={`text-sm font-medium ${currentStreak.type === 'win' ? 'text-green-900' :
                 currentStreak.type === 'loss' ? 'text-red-900' :
-                'text-gray-900'
-              }`}>
+                  'text-gray-900'
+                }`}>
                 Current Streak
               </h3>
             </div>
-            <p className={`text-3xl font-bold ${
-              currentStreak.type === 'win' ? 'text-green-700' :
+            <p className={`text-3xl font-bold ${currentStreak.type === 'win' ? 'text-green-700' :
               currentStreak.type === 'loss' ? 'text-red-700' :
-              'text-gray-700'
-            }`}>
+                'text-gray-700'
+              }`}>
               {currentStreak.count > 0 ? currentStreak.count : '-'}
             </p>
-            <p className={`text-xs mt-1 ${
-              currentStreak.type === 'win' ? 'text-green-700' :
+            <p className={`text-xs mt-1 ${currentStreak.type === 'win' ? 'text-green-700' :
               currentStreak.type === 'loss' ? 'text-red-700' :
-              'text-gray-700'
-            }`}>
+                'text-gray-700'
+              }`}>
               {currentStreak.type === 'win' ? 'Winning streak 🔥' :
-               currentStreak.type === 'loss' ? 'Losing streak' :
-               'No active streak'}
+                currentStreak.type === 'loss' ? 'Losing streak' :
+                  'No active streak'}
             </p>
           </div>
         </div>
@@ -427,19 +441,19 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Average Win</span>
-                <span className="text-lg font-bold text-green-600">₹{avgWin.toFixed(2)}</span>
+                <span className="text-lg font-bold text-green-600">{avgWin.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Average Loss</span>
-                <span className="text-lg font-bold text-red-600">₹{avgLoss.toFixed(2)}</span>
+                <span className="text-lg font-bold text-red-600">{avgLoss.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between border-t pt-4">
                 <span className="text-sm text-gray-600">Best Trade</span>
-                <span className="text-lg font-bold text-green-600">₹{bestTrade.toFixed(2)}</span>
+                <span className="text-lg font-bold text-green-600">{bestTrade.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Worst Trade</span>
-                <span className="text-lg font-bold text-red-600">₹{worstTrade.toFixed(2)}</span>
+                <span className="text-lg font-bold text-red-600">{worstTrade.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -451,8 +465,8 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {recentTrades.map((trade) => (
-                  <div 
-                    key={trade.id} 
+                  <div
+                    key={trade.id}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div>
@@ -462,12 +476,11 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className={`font-bold ${
-                        trade.pnl && trade.pnl > 0 ? 'text-green-600' : 
-                        trade.pnl && trade.pnl < 0 ? 'text-red-600' : 
-                        'text-gray-600'
-                      }`}>
-                        {trade.pnl ? `₹${trade.pnl.toFixed(2)}` : 'Open'}
+                      <p className={`font-bold ${trade.pnl && trade.pnl > 0 ? 'text-green-600' :
+                        trade.pnl && trade.pnl < 0 ? 'text-red-600' :
+                          'text-gray-600'
+                        }`}>
+                        {trade.pnl ? trade.pnl.toFixed(2) : 'Open'}
                       </p>
                       <p className="text-xs text-gray-500">{trade.status}</p>
                     </div>
@@ -481,7 +494,7 @@ export default function DashboardPage() {
         {/* QUICK ACTIONS */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Link href="/trades/new" className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 font-medium text-center transition">
               ➕ Add Trade
             </Link>
@@ -498,9 +511,6 @@ export default function DashboardPage() {
             </button>
             <Link href="/import" className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 font-medium text-center transition">
               📤 Import
-            </Link>
-            <Link href="/psychology" className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 font-medium text-center transition">
-              🧠 Psychology
             </Link>
           </div>
         </div>

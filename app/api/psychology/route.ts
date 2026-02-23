@@ -1,18 +1,35 @@
 // File: src/app/api/psychology/route.ts
-// FINAL VERSION - Uses PROFILES table only
+// PRODUCTION-READY WITH SECURITY, VALIDATION, AND LOGGING
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth/options';
 import { createServiceClient } from '@/lib/supabase/service';
+import { psychologyEntrySchema } from '@/lib/validation/schemas';
+import { rateLimitMiddleware } from '@/lib/rate-limit/middleware';
+import { tradeCreationRateLimit } from '@/lib/rate-limit/config';
+import { logger, logApiRequest, logDatabase, logError } from '@/lib/logging/logger';
+import { ZodError } from 'zod';
 
 export async function POST(request: Request) {
   try {
+    logApiRequest('POST', '/api/psychology', undefined);
+
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
+      logger.warn('Unauthorized psychology entry attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Apply rate limiting
+    const rateLimitResult = await rateLimitMiddleware(
+      request,
+      session.user.id,
+      tradeCreationRateLimit,
+      { blockMessage: 'Too many requests. Please slow down.' }
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     const supabase = createServiceClient();
 
@@ -35,9 +52,25 @@ export async function POST(request: Request) {
           trading_experience: 'beginner',
           preferred_markets: ['stocks']
         } as any);
+      logger.info('Created user profile', { userId: session.user.id });
     }
 
     const body = await request.json();
+
+    // Validate input - use partial validation for flexible schema
+    let validatedData;
+    try {
+      validatedData = psychologyEntrySchema.partial().parse(body);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        logger.warn('Psychology entry validation failed', { errors: err.issues, userId: session.user.id });
+        return NextResponse.json(
+          { error: 'Validation failed', details: err.issues },
+          { status: 400 }
+        );
+      }
+      throw err;
+    }
 
     // Only insert fields that exist in database
     const insertData: any = {
@@ -70,13 +103,14 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error('Psychology save error:', error);
+      logError(error, 'Psychology entry save', { userId: session.user.id });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    logDatabase('Psychology entry created', 'psychology_entries', { userId: session.user.id, entryId: data.id });
     return NextResponse.json({ entry: data, success: true });
   } catch (error: any) {
-    console.error('Psychology API error:', error);
+    logError(error, 'POST /api/psychology');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -84,7 +118,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

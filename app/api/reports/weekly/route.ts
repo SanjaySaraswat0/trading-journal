@@ -1,11 +1,15 @@
 // File: app/api/reports/weekly/route.ts
-// ✅ AI-Powered Weekly Trading Report Generator - FIXED GEMINI INTEGRATION
+// PRODUCTION-READY WITH SECURITY, VALIDATION, AND LOGGING
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { createServiceClient } from '@/lib/supabase/service';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { weeklyReportSchema } from '@/lib/validation/schemas';
+import { rateLimitMiddleware } from '@/lib/rate-limit/middleware';
+import { aiAnalysisRateLimit } from '@/lib/rate-limit/config';
+import { logger, logApiRequest, logAI, logError } from '@/lib/logging/logger';
+import { ZodError } from 'zod';
 
 interface Trade {
   id: string;
@@ -52,29 +56,29 @@ function calculateWeeklyStats(trades: Trade[]): WeeklyStats {
   const totalWins = winningTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + (t.pnl || 0), 0));
 
-  const avgWin = winningTrades.length > 0 
-    ? totalWins / winningTrades.length 
-    : 0;
-  
-  const avgLoss = losingTrades.length > 0 
-    ? totalLosses / losingTrades.length 
+  const avgWin = winningTrades.length > 0
+    ? totalWins / winningTrades.length
     : 0;
 
-  const winRate = closedTrades.length > 0 
-    ? (winningTrades.length / closedTrades.length) * 100 
+  const avgLoss = losingTrades.length > 0
+    ? totalLosses / losingTrades.length
     : 0;
 
-  const largestWin = winningTrades.length > 0 
-    ? Math.max(...winningTrades.map(t => t.pnl || 0)) 
+  const winRate = closedTrades.length > 0
+    ? (winningTrades.length / closedTrades.length) * 100
     : 0;
 
-  const largestLoss = losingTrades.length > 0 
-    ? Math.min(...losingTrades.map(t => t.pnl || 0)) 
+  const largestWin = winningTrades.length > 0
+    ? Math.max(...winningTrades.map(t => t.pnl || 0))
+    : 0;
+
+  const largestLoss = losingTrades.length > 0
+    ? Math.min(...losingTrades.map(t => t.pnl || 0))
     : 0;
 
   // Find best/worst setups
   const setupPerformance = new Map<string, { wins: number; losses: number; pnl: number }>();
-  
+
   closedTrades.forEach(trade => {
     const setup = trade.setup_type || 'unknown';
     if (!setupPerformance.has(setup)) {
@@ -105,16 +109,16 @@ function calculateWeeklyStats(trades: Trade[]): WeeklyStats {
   const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins;
 
   // Calculate avg risk-reward
-  const tradesWithRR = closedTrades.filter(t => 
+  const tradesWithRR = closedTrades.filter(t =>
     t.stop_loss && t.target_price && t.entry_price
   );
-  
+
   const avgRiskReward = tradesWithRR.length > 0
     ? tradesWithRR.reduce((sum, t) => {
-        const risk = Math.abs(t.entry_price - (t.stop_loss || 0));
-        const reward = Math.abs((t.target_price || 0) - t.entry_price);
-        return sum + (risk > 0 ? reward / risk : 0);
-      }, 0) / tradesWithRR.length
+      const risk = Math.abs(t.entry_price - (t.stop_loss || 0));
+      const reward = Math.abs((t.target_price || 0) - t.entry_price);
+      return sum + (risk > 0 ? reward / risk : 0);
+    }, 0) / tradesWithRR.length
     : 0;
 
   return {
@@ -151,7 +155,7 @@ function detectMistakes(trades: Trade[]): string[] {
   }
 
   // Large losses
-  const largeLosses = trades.filter(t => 
+  const largeLosses = trades.filter(t =>
     t.pnl && t.pnl < -1000
   ).length;
   if (largeLosses > 0) {
@@ -168,18 +172,18 @@ function detectMistakes(trades: Trade[]): string[] {
   }
 
   // Revenge trading pattern (quick trades after loss)
-  const sortedTrades = [...trades].sort((a, b) => 
+  const sortedTrades = [...trades].sort((a, b) =>
     new Date(a.entry_time).getTime() - new Date(b.entry_time).getTime()
   );
 
   for (let i = 1; i < sortedTrades.length; i++) {
     const prev = sortedTrades[i - 1];
     const curr = sortedTrades[i];
-    
+
     if (prev.pnl && prev.pnl < 0 && curr.entry_time) {
       const timeDiff = new Date(curr.entry_time).getTime() - new Date(prev.entry_time).getTime();
       const minutesDiff = timeDiff / (1000 * 60);
-      
+
       if (minutesDiff < 30) {
         mistakes.push('Possible revenge trading detected - trades taken too quickly after losses');
         break;
@@ -192,50 +196,38 @@ function detectMistakes(trades: Trade[]): string[] {
 
 // Generate AI insights using Gemini - FIXED VERSION
 async function generateAIInsights(
-  stats: WeeklyStats, 
-  trades: Trade[], 
+  stats: WeeklyStats,
+  trades: Trade[],
   mistakes: string[]
 ): Promise<string> {
   try {
     if (!process.env.GEMINI_API_KEY) {
-      console.warn('⚠️ GEMINI_API_KEY not configured');
+      logger.warn('GEMINI_API_KEY not configured');
       return "AI insights unavailable - Gemini API key not configured.";
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
-    // ✅ FIX: Use correct model name - try these in order
-    // Option 1: gemini-1.5-flash (fastest, recommended for production)
-    // Option 2: gemini-1.5-pro-latest (more capable)
-    // Option 3: gemini-pro (older but stable)
-    
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash'  // ✅ CHANGED FROM gemini-1.5-pro
-    });
-
-    const prompt = `
-You are an expert trading coach analyzing a trader's weekly performance. Provide actionable insights.
+    const prompt = `You are an expert trading coach analyzing a trader's weekly performance. Provide actionable insights.
 
 WEEKLY STATISTICS:
 - Total Trades: ${stats.totalTrades}
 - Win Rate: ${stats.winRate.toFixed(1)}%
-- Total P&L: $${stats.totalPnL.toFixed(2)}
-- Average Win: $${stats.avgWin.toFixed(2)}
-- Average Loss: $${stats.avgLoss.toFixed(2)}
+- Total P&L: ₹${stats.totalPnL.toFixed(2)}
+- Average Win: ₹${stats.avgWin.toFixed(2)}
+- Average Loss: ₹${stats.avgLoss.toFixed(2)}
 - Profit Factor: ${stats.profitFactor.toFixed(2)}
 - Best Setup: ${stats.bestSetup}
 - Worst Setup: ${stats.worstSetup}
-- Largest Win: $${stats.largestWin.toFixed(2)}
-- Largest Loss: $${stats.largestLoss.toFixed(2)}
+- Largest Win: ₹${stats.largestWin.toFixed(2)}
+- Largest Loss: ₹${stats.largestLoss.toFixed(2)}
 - Average R:R Ratio: ${stats.avgRiskReward.toFixed(2)}
 
 DETECTED MISTAKES:
 ${mistakes.length > 0 ? mistakes.map(m => `- ${m}`).join('\n') : '- None detected'}
 
 SAMPLE TRADES:
-${trades.slice(0, 5).map(t => 
-  `- ${t.symbol} ${t.trade_type}: Entry $${t.entry_price}, Exit ${t.exit_price ? '$' + t.exit_price : 'Open'}, P&L: ${t.pnl ? '$' + t.pnl.toFixed(2) : 'N/A'}`
-).join('\n')}
+${trades.slice(0, 5).map(t =>
+      `- ${t.symbol} ${t.trade_type}: Entry ${t.entry_price}, Exit ${t.exit_price ?? 'Open'}, P&L: ₹${t.pnl?.toFixed(2) ?? 'N/A'}`
+    ).join('\n')}
 
 Provide a concise weekly report with:
 1. Performance Summary (2-3 sentences)
@@ -243,30 +235,34 @@ Provide a concise weekly report with:
 3. Areas for Improvement (2-3 bullet points)
 4. Actionable Recommendations for Next Week (3-4 specific actions)
 
-Keep it motivating but honest. Focus on data-driven insights.
-`;
+Keep it motivating but honest. Focus on data-driven insights for Indian market trading.`;
 
-    console.log('🤖 Generating AI insights with Gemini...');
-    
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    console.log('✅ AI insights generated successfully');
+    logAI('Generating weekly report AI insights', { tradesAnalyzed: stats.totalTrades });
+
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const fetchRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!fetchRes.ok) throw new Error(`Gemini ${fetchRes.status}`);
+    const fetchData = await fetchRes.json();
+    const text = fetchData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    logger.info('Weekly report AI insights generated successfully');
     return text;
 
   } catch (error: any) {
-    console.error('❌ Gemini API error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      status: error.status,
-      statusText: error.statusText
-    });
-    
+    logError(error, 'Weekly report AI generation');
+
     // Return a helpful fallback message
     return `
 **Performance Summary**
-This week you completed ${stats.totalTrades} trades with a win rate of ${stats.winRate.toFixed(1)}% and total P&L of $${stats.totalPnL.toFixed(2)}.
+This week you completed ${stats.totalTrades} trades with a win rate of ${stats.winRate.toFixed(1)}% and total P&L of ${stats.totalPnL.toFixed(2)}.
 
 **Key Strengths**
 - ${stats.bestSetup !== 'None' ? `Best performing setup: ${stats.bestSetup}` : 'Consistent risk management'}
@@ -288,13 +284,41 @@ ${mistakes.length > 0 ? mistakes.map(m => `- ${m}`).join('\n') : '- Continue mon
 
 export async function POST(request: Request) {
   try {
+    logApiRequest('POST', '/api/reports/weekly', undefined);
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
+      logger.warn('Unauthorized weekly report attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Apply rate limiting
+    const rateLimitResult = await rateLimitMiddleware(
+      request,
+      session.user.id,
+      aiAnalysisRateLimit,
+      { blockMessage: 'Too many AI report requests. Please slow down.' }
+    );
+    if (rateLimitResult) return rateLimitResult;
+
     const body = await request.json();
-    const { startDate, endDate } = body;
+
+    // Validate input
+    let validatedData;
+    try {
+      validatedData = weeklyReportSchema.parse(body);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        logger.warn('Weekly report validation failed', { errors: err.issues, userId: session.user.id });
+        return NextResponse.json(
+          { error: 'Validation failed', details: err.issues },
+          { status: 400 }
+        );
+      }
+      throw err;
+    }
+
+    const { startDate, endDate } = validatedData;
 
     // Default to current week if no dates provided
     const start = startDate ? new Date(startDate) : new Date();
@@ -312,7 +336,7 @@ export async function POST(request: Request) {
       end.setHours(23, 59, 59, 999);
     }
 
-    console.log(`📊 Generating weekly report: ${start.toISOString()} to ${end.toISOString()}`);
+    logger.info('Generating weekly report', { start: start.toISOString(), end: end.toISOString(), userId: session.user.id });
 
     const supabase = createServiceClient();
 
@@ -412,3 +436,4 @@ export async function GET(request: Request) {
     })
   );
 }
+

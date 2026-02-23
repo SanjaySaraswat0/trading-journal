@@ -1,10 +1,15 @@
 // app/api/trades/import/route.ts
-// ✅ FIXED: Handles both F&O and Stocks Excel formats with proper date parsing
+// PRODUCTION-READY WITH SECURITY, VALIDATION, AND LOGGING
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { createServiceClient } from '@/lib/supabase/service';
+import { rateLimitMiddleware } from '@/lib/rate-limit/middleware';
+import { bulkImportRateLimit } from '@/lib/rate-limit/config';
+import { logger, logApiRequest, logDatabase, logError } from '@/lib/logging/logger';
+import { getUserTier } from '@/lib/rbac/middleware';
+import { getTierPermissions, hasReachedLimit } from '@/lib/rbac/permissions';
 
 function normalizeColumnName(name: string): string {
   return String(name).toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -20,26 +25,26 @@ function parseNumber(value: any): number {
 // ✅ FIXED: Parse Indian date format (DD-MM-YYYY or variations)
 function parseDate(value: any): string {
   if (!value) return new Date().toISOString();
-  
+
   // If already a Date object
   if (value instanceof Date) {
     return value.toISOString();
   }
-  
+
   // If it's a string
   const str = String(value).trim();
-  
+
   // Try parsing DD-MM-YYYY format (e.g., "04-04-2025")
   const ddmmyyyyMatch = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
   if (ddmmyyyyMatch) {
     const [, day, month, year] = ddmmyyyyMatch;
     const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
     if (!isNaN(date.getTime())) {
-      console.log(`✅ Parsed date: ${str} → ${date.toISOString()}`);
+      logger.info(`Parsed date: ${str} → ${date.toISOString()}`);
       return date.toISOString();
     }
   }
-  
+
   // Try parsing YYYY-MM-DD format
   const yyyymmddMatch = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
   if (yyyymmddMatch) {
@@ -49,15 +54,15 @@ function parseDate(value: any): string {
       return date.toISOString();
     }
   }
-  
+
   // Try native Date parsing as last resort
   const date = new Date(str);
   if (!isNaN(date.getTime())) {
     return date.toISOString();
   }
-  
+
   // Fallback to current date
-  console.log(`⚠️ Could not parse date: ${str}, using current date`);
+  logger.warn(`Could not parse date: ${str}, using current date`);
   return new Date().toISOString();
 }
 
@@ -66,45 +71,45 @@ function findHeaderRow(rows: any[][]): number {
   for (let i = 0; i < Math.min(rows.length, 40); i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
-    
+
     const normalized = row.map((cell: any) => normalizeColumnName(String(cell)));
-    
+
     // Check for common header patterns
-    const hasStockName = normalized.some((n: string) => 
+    const hasStockName = normalized.some((n: string) =>
       n.includes('stockname') || n.includes('scripname') || n.includes('symbol') || n.includes('scrip')
     );
     const hasQuantity = normalized.some((n: string) => n.includes('quantity') || n.includes('qty'));
-    const hasBuyPrice = normalized.some((n: string) => 
+    const hasBuyPrice = normalized.some((n: string) =>
       n.includes('buyprice') || n.includes('buy_price') || n.includes('price')
     );
-    const hasBuyDate = normalized.some((n: string) => 
+    const hasBuyDate = normalized.some((n: string) =>
       n.includes('buydate') || n.includes('buy_date') || n.includes('date')
     );
-    
+
     // Must have at least stock name + (quantity OR price)
     if (hasStockName && (hasQuantity || hasBuyPrice || hasBuyDate)) {
-      console.log(`✅ Found header row at index ${i}:`, row.slice(0, 8));
+      logger.info(`Found header row at index ${i}`);
       return i;
     }
   }
-  
-  console.log('❌ Could not find header row, using row 0');
+
+  logger.warn('Could not find header row, using row 0');
   return 0;
 }
 
 // ✅ IMPROVED: Find column with multiple possible names
 function findColumn(headers: string[], possibleNames: string[]): number {
   const normalizedHeaders = headers.map((h: string) => normalizeColumnName(h));
-  
+
   for (const name of possibleNames) {
     const normalizedName = normalizeColumnName(name);
-    
+
     // Exact match
     let index = normalizedHeaders.indexOf(normalizedName);
     if (index !== -1) return index;
-    
+
     // Partial match
-    index = normalizedHeaders.findIndex((h: string) => 
+    index = normalizedHeaders.findIndex((h: string) =>
       h.includes(normalizedName) || normalizedName.includes(h)
     );
     if (index !== -1) return index;
@@ -135,20 +140,20 @@ function parseRow(row: any[], headers: string[], rowIndex: number): any | null {
     }
 
     // Skip summary/total rows
-    if (stockName.toLowerCase().includes('total') || 
-        stockName.toLowerCase().includes('summary') ||
-        stockName.toLowerCase().includes('grand')) {
+    if (stockName.toLowerCase().includes('total') ||
+      stockName.toLowerCase().includes('summary') ||
+      stockName.toLowerCase().includes('grand')) {
       return null;
     }
 
     const quantity = Math.abs(parseNumber(row[qtyIdx]));
     const buyPrice = parseNumber(row[buyPriceIdx]);
     const sellPrice = sellPriceIdx !== -1 ? parseNumber(row[sellPriceIdx]) : 0;
-    
+
     // Parse dates
     const buyDate = buyDateIdx !== -1 ? parseDate(row[buyDateIdx]) : new Date().toISOString();
     const sellDate = sellDateIdx !== -1 && row[sellDateIdx] ? parseDate(row[sellDateIdx]) : null;
-    
+
     // P&L - use from column if available
     let pnl = 0;
     if (pnlIdx !== -1 && row[pnlIdx]) {
@@ -164,11 +169,8 @@ function parseRow(row: any[], headers: string[], rowIndex: number): any | null {
 
     // Only include closed trades (with sell price)
     if (sellPrice <= 0) {
-      console.log(`⚠️ Row ${rowIndex}: ${stockName} - Open position, skipping`);
       return null;
     }
-
-    console.log(`✅ Row ${rowIndex}: ${stockName} | Buy: ₹${buyPrice.toFixed(2)} | Sell: ₹${sellPrice.toFixed(2)} | Qty: ${quantity} | P&L: ₹${pnl.toFixed(2)}`);
 
     return {
       symbol: stockName,
@@ -180,19 +182,29 @@ function parseRow(row: any[], headers: string[], rowIndex: number): any | null {
       pnl
     };
   } catch (error: any) {
-    console.error(`❌ Error parsing row ${rowIndex}:`, error.message);
+    logger.warn(`Error parsing row ${rowIndex}: ${error.message}`);
     return null;
   }
 }
 
 export async function POST(request: Request) {
   try {
-    console.log('\n🟢 === IMPORT STARTED ===');
+    logApiRequest('POST', '/api/trades/import', undefined);
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
+      logger.warn('Unauthorized import attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Apply rate limiting for bulk imports
+    const rateLimitResult = await rateLimitMiddleware(
+      request,
+      session.user.id,
+      bulkImportRateLimit,
+      { blockMessage: 'Too many bulk imports. Please wait before trying again.' }
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     const body = await request.json();
     const { csvData } = body;
@@ -202,7 +214,7 @@ export async function POST(request: Request) {
     }
 
     // Filter empty rows
-    const nonEmptyRows = csvData.filter((row: any) => 
+    const nonEmptyRows = csvData.filter((row: any) =>
       Array.isArray(row) && row.some((cell: any) => cell && String(cell).trim() !== '')
     );
 
@@ -210,19 +222,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Empty file' }, { status: 400 });
     }
 
-    console.log(`📊 Total non-empty rows: ${nonEmptyRows.length}`);
+    logger.info(`Total non-empty rows: ${nonEmptyRows.length}`, { userId: session.user.id });
 
     // ✅ Find header row
     const headerRowIndex = findHeaderRow(nonEmptyRows);
     const headers = nonEmptyRows[headerRowIndex];
     const dataRows = nonEmptyRows.slice(headerRowIndex + 1);
 
-    console.log(`📋 Headers (row ${headerRowIndex}):`, headers.slice(0, 10));
-    console.log(`📊 Data rows to process: ${dataRows.length}`);
+    logger.info(`Headers found at row ${headerRowIndex}, data rows: ${dataRows.length}`);
 
     // ✅ Parse all data rows
     const parsedTrades: any[] = [];
-    
+
     dataRows.forEach((row: any[], idx: number) => {
       const trade = parseRow(row, headers, idx + headerRowIndex + 2);
       if (trade) {
@@ -230,9 +241,10 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log(`✅ Successfully parsed ${parsedTrades.length} closed trades`);
+    logger.info(`Successfully parsed ${parsedTrades.length} closed trades`, { userId: session.user.id });
 
     if (parsedTrades.length === 0) {
+      logger.warn('No valid trades found in import', { userId: session.user.id, detectedHeaders: headers });
       return NextResponse.json({
         error: 'No valid trades found',
         message: 'No closed trades with both Buy and Sell data found',
@@ -241,12 +253,42 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    // Check RBAC tier limits for bulk imports
+    const supabase = createServiceClient();
+    const { data: userData } = await supabase
+      .from('trades')
+      .select('user_id')
+      .eq('user_id', session.user.id)
+      .limit(1)
+      .single();
+
+    const tier = getUserTier(userData);
+    const tierPermissions = getTierPermissions(tier);
+
+    // Enforce bulk import limits based on tier
+    if (parsedTrades.length > tierPermissions.bulkImportMaxTrades) {
+      logger.warn('Bulk import limit exceeded', {
+        userId: session.user.id,
+        tier,
+        attempted: parsedTrades.length,
+        limit: tierPermissions.bulkImportMaxTrades
+      });
+      return NextResponse.json({
+        error: 'Import limit exceeded',
+        message: `Your ${tier} tier allows importing up to ${tierPermissions.bulkImportMaxTrades} trades at once. You're trying to import ${parsedTrades.length}.`,
+        hint: tier === 'free' ? 'Upgrade to Pro for unlimited bulk imports' : `Split your import into smaller batches of ${tierPermissions.bulkImportMaxTrades} trades`,
+        tier,
+        limit: tierPermissions.bulkImportMaxTrades,
+        attempted: parsedTrades.length
+      }, { status: 403 });
+    }
+
     // ✅ Prepare for database
     const tradesForDB = parsedTrades.map((trade: any) => {
       const positionSize = trade.entry_price * trade.quantity;
       const pnl = trade.pnl;
       const pnlPercentage = (pnl / positionSize) * 100;
-      
+
       let status = 'breakeven';
       if (pnl > 0.01) {
         status = 'win';
@@ -281,8 +323,6 @@ export async function POST(request: Request) {
     });
 
     // ✅ Duplicate check
-    const supabase = createServiceClient();
-    
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: existingTrades } = await supabase
       .from('trades')

@@ -71,16 +71,16 @@ const isWeekend = (date: Date): boolean => {
 const isMarketOpen = (dateTime: Date, assetType: string): { valid: boolean; message: string } => {
   const marketConfig = MARKET_HOURS[assetType as keyof typeof MARKET_HOURS];
   if (!marketConfig) return { valid: true, message: '' };
-  
+
   if (isWeekend(dateTime) && !marketConfig.weekends) {
     return {
       valid: false,
       message: `❌ ${marketConfig.name} is CLOSED on weekends`
     };
   }
-  
+
   if (assetType === 'crypto') return { valid: true, message: '' };
-  
+
   const hours = dateTime.getHours();
   const minutes = dateTime.getMinutes();
   const currentTimeInMinutes = hours * 60 + minutes;
@@ -107,23 +107,23 @@ export default function TradeForm() {
   const [currentTime, setCurrentTime] = useState('');
   const [marketStatus, setMarketStatus] = useState<string>('');
   const [validation, setValidation] = useState<ValidationState>({});
-  const [recentSymbols, setRecentSymbols] = useState<string[]>(['AAPL', 'NIFTY', 'BTCUSD', 'EURUSD']);
+  const [recentSymbols, setRecentSymbols] = useState<string[]>(['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX', 'RELIANCE', 'INFY']);
   const [showSymbolSuggestions, setShowSymbolSuggestions] = useState(false);
   const [templates, setTemplates] = useState<TradeTemplate[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [riskMetrics, setRiskMetrics] = useState({ riskAmount: 0, rrRatio: 0, percentRisk: 0 });
-  
+
   // ✅ FIXED: Separate date and time states
   const [entryDate, setEntryDate] = useState('');
   const [entryTime, setEntryTime] = useState('');
   const [exitDate, setExitDate] = useState('');
   const [exitTime, setExitTime] = useState('');
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const symbolInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState<TradeFormData>({
     symbol: '',
     asset_type: 'stock',
@@ -151,13 +151,56 @@ export default function TradeForm() {
         console.error('Failed to load templates:', e);
       }
     }
+
+    // ✅ FORCE Indian Market Symbols - Aggressively clear old international symbols
+    const indianMarketSymbols = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX', 'RELIANCE', 'INFY'];
+
+    // List of international symbols to completely remove
+    const internationalSymbols = ['AAPL', 'BTCUSD', 'EURUSD', 'GOOGL', 'MSFT', 'TSLA', 'GBPUSD', 'USDJPY'];
+
     const savedSymbols = localStorage.getItem('recentSymbols');
+    let shouldReset = false;
+
     if (savedSymbols) {
       try {
-        setRecentSymbols(JSON.parse(savedSymbols));
+        const parsed = JSON.parse(savedSymbols);
+
+        // Check if ANY international symbol exists
+        const hasInternationalSymbol = parsed.some((sym: string) =>
+          internationalSymbols.includes(sym.toUpperCase())
+        );
+
+        if (hasInternationalSymbol) {
+          // FORCE RESET: International symbols detected - clear everything
+          console.log('🔄 Clearing international symbols from localStorage...');
+          shouldReset = true;
+        } else {
+          // Filter to keep only valid symbols
+          const filteredSymbols = parsed.filter((sym: string) =>
+            !internationalSymbols.includes(sym.toUpperCase()) && sym.trim() !== ''
+          );
+
+          if (filteredSymbols.length > 0) {
+            // User has valid Indian symbols
+            setRecentSymbols(filteredSymbols);
+          } else {
+            shouldReset = true;
+          }
+        }
       } catch (e) {
         console.error('Failed to load recent symbols:', e);
+        shouldReset = true;
       }
+    } else {
+      // No saved symbols at all
+      shouldReset = true;
+    }
+
+    // Reset to Indian market defaults if needed
+    if (shouldReset) {
+      console.log('✅ Setting Indian market symbols:', indianMarketSymbols);
+      setRecentSymbols(indianMarketSymbols);
+      localStorage.setItem('recentSymbols', JSON.stringify(indianMarketSymbols));
     }
   }, []);
 
@@ -169,7 +212,7 @@ export default function TradeForm() {
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
       const formatted = `${year}-${month}-${day}`;
-      
+
       setMaxDateTime(formatted);
       // ✅ FIXED: 24-hour format
       setCurrentTime(now.toLocaleString('en-IN', {
@@ -184,7 +227,7 @@ export default function TradeForm() {
 
       const marketCheck = isMarketOpen(now, formData.asset_type);
       const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
-      
+
       if (isWeekend(now) && formData.asset_type !== 'crypto') {
         setMarketStatus(`🔴 Market CLOSED (${dayName})`);
       } else if (marketCheck.valid) {
@@ -199,18 +242,19 @@ export default function TradeForm() {
     return () => clearInterval(interval);
   }, [formData.asset_type]);
 
-  // ✅ Combine date and time for entry_time
+  // ✅ Combine date and time for entry_time (ISO 8601 format)
   useEffect(() => {
     if (entryDate && entryTime) {
-      const combined = `${entryDate}T${entryTime}`;
+      // Convert to ISO 8601 format: 2024-02-18T10:30:00.000Z
+      const combined = `${entryDate}T${entryTime}:00.000Z`;
       setFormData(prev => ({ ...prev, entry_time: combined }));
     }
   }, [entryDate, entryTime]);
 
-  // ✅ Combine date and time for exit_time
+  // ✅ Combine date and time for exit_time (ISO 8601 format)
   useEffect(() => {
     if (exitDate && exitTime) {
-      const combined = `${exitDate}T${exitTime}`;
+      const combined = `${exitDate}T${exitTime}:00.000Z`;
       setFormData(prev => ({ ...prev, exit_time: combined }));
     } else if (!exitDate && !exitTime) {
       setFormData(prev => ({ ...prev, exit_time: '' }));
@@ -237,8 +281,8 @@ export default function TradeForm() {
     const qty = parseFloat(formData.quantity);
 
     if (!isNaN(entry) && !isNaN(stopLoss) && !isNaN(qty)) {
-      const riskPerShare = formData.trade_type === 'long' 
-        ? entry - stopLoss 
+      const riskPerShare = formData.trade_type === 'long'
+        ? entry - stopLoss
         : stopLoss - entry;
       const riskAmount = Math.abs(riskPerShare * qty);
       const posSize = parseFloat(formData.position_size);
@@ -292,22 +336,22 @@ export default function TradeForm() {
   const isWithinMarketHours = (timeString: string, assetType: string): boolean => {
     if (!timeString) return false;
     if (assetType === 'crypto') return true; // Crypto 24/7
-    
+
     const [hours, minutes] = timeString.split(':').map(Number);
     const timeInMinutes = hours * 60 + minutes;
-    
+
     const config = MARKET_HOURS[assetType as keyof typeof MARKET_HOURS];
     const openTime = config.openTime.hour * 60 + config.openTime.minute;
     const closeTime = config.closeTime.hour * 60 + config.closeTime.minute;
-    
+
     return timeInMinutes >= openTime && timeInMinutes <= closeTime;
   };
 
   // ✅ CRITICAL: Validate exit is AFTER entry
   const isExitAfterEntry = (
-    entryDate: string, 
-    entryTime: string, 
-    exitDate: string, 
+    entryDate: string,
+    entryTime: string,
+    exitDate: string,
     exitTime: string
   ): { valid: boolean; message: string } => {
     if (!entryDate || !entryTime || !exitDate || !exitTime) {
@@ -318,9 +362,9 @@ export default function TradeForm() {
     const exitDateTime = new Date(`${exitDate}T${exitTime}`);
 
     if (exitDateTime <= entryDateTime) {
-      return { 
-        valid: false, 
-        message: '❌ Exit time must be AFTER entry time!' 
+      return {
+        valid: false,
+        message: '❌ Exit time must be AFTER entry time!'
       };
     }
 
@@ -329,19 +373,19 @@ export default function TradeForm() {
 
   const validateField = (name: string, value: string): { valid: boolean; message: string } => {
     if (name === 'symbol' && value) {
-      return value.trim().length > 0 
+      return value.trim().length > 0
         ? { valid: true, message: 'Valid symbol' }
         : { valid: false, message: 'Symbol required' };
     }
     if (name === 'entry_price' && value) {
       const price = parseFloat(value);
-      return price > 0 
+      return price > 0
         ? { valid: true, message: 'Valid price' }
         : { valid: false, message: 'Price must be positive' };
     }
     if (name === 'quantity' && value) {
       const qty = parseInt(value);
-      return qty > 0 
+      return qty > 0
         ? { valid: true, message: 'Valid quantity' }
         : { valid: false, message: 'Quantity must be positive' };
     }
@@ -351,7 +395,7 @@ export default function TradeForm() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    
+
     const validationResult = validateField(name, value);
     setValidation(prev => ({ ...prev, [name]: validationResult }));
   };
@@ -365,11 +409,11 @@ export default function TradeForm() {
     if (type === 'now') {
       targetTime = now;
       const marketCheck = isMarketOpen(now, formData.asset_type);
-      
+
       if (!marketCheck.valid && formData.asset_type !== 'crypto') {
         const today = new Date();
         today.setHours(marketConfig.closeTime.hour, marketConfig.closeTime.minute, 0, 0);
-        
+
         if (isWeekend(now) || now.getHours() < marketConfig.openTime.hour) {
           targetTime = new Date(today);
           if (isWeekend(now)) {
@@ -393,7 +437,7 @@ export default function TradeForm() {
     } else if (type === 'market-open') {
       targetTime = new Date();
       targetTime.setHours(marketConfig.openTime.hour, marketConfig.openTime.minute, 0, 0);
-      
+
       if (isWeekend(targetTime) || targetTime > now) {
         const day = targetTime.getDay();
         if (day === 0) targetTime.setDate(targetTime.getDate() - 2);
@@ -403,7 +447,7 @@ export default function TradeForm() {
     } else if (type === 'market-close') {
       targetTime = new Date();
       targetTime.setHours(marketConfig.closeTime.hour, marketConfig.closeTime.minute, 0, 0);
-      
+
       if (isWeekend(targetTime) || targetTime > now) {
         const day = targetTime.getDay();
         if (day === 0) targetTime.setDate(targetTime.getDate() - 2);
@@ -413,13 +457,13 @@ export default function TradeForm() {
     } else if (type === 'yesterday-close') {
       targetTime = new Date();
       targetTime.setDate(targetTime.getDate() - 1);
-      
+
       if (isWeekend(targetTime)) {
         const day = targetTime.getDay();
         if (day === 0) targetTime.setDate(targetTime.getDate() - 2);
         else if (day === 6) targetTime.setDate(targetTime.getDate() - 1);
       }
-      
+
       targetTime.setHours(marketConfig.closeTime.hour, marketConfig.closeTime.minute, 0, 0);
     }
 
@@ -428,7 +472,7 @@ export default function TradeForm() {
     const day = String(targetTime.getDate()).padStart(2, '0');
     const hours = String(targetTime.getHours()).padStart(2, '0');
     const minutes = String(targetTime.getMinutes()).padStart(2, '0');
-    
+
     setEntryDate(`${year}-${month}-${day}`);
     setEntryTime(`${hours}:${minutes}`);
   };
@@ -447,7 +491,7 @@ export default function TradeForm() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleImageFile(e.dataTransfer.files[0]);
     }
@@ -476,7 +520,7 @@ export default function TradeForm() {
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.url) {
         setScreenshotUrl(data.url);
         alert('✅ Screenshot uploaded successfully!');
@@ -546,34 +590,34 @@ export default function TradeForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.symbol.trim()) {
       alert('⚠️ Symbol is required');
       return;
     }
-    
+
     if (!formData.entry_price || parseFloat(formData.entry_price) <= 0) {
       alert('⚠️ Valid entry price is required');
       return;
     }
-    
+
     if (!formData.quantity || parseInt(formData.quantity) <= 0) {
       alert('⚠️ Valid quantity is required');
       return;
     }
-    
+
     if (!formData.position_size || parseFloat(formData.position_size) <= 0) {
       alert('⚠️ Valid position size is required');
       return;
     }
-    
+
     if (!entryDate || !entryTime) {
       alert('⚠️ Entry date and time are required');
       return;
     }
 
     // ✅ CRITICAL: Final validation before submit
-    
+
     // Validate entry date is market day
     if (!isMarketDay(entryDate) && formData.asset_type !== 'crypto') {
       alert('❌ Entry date must be a weekday (Monday-Friday)!');
@@ -609,8 +653,8 @@ export default function TradeForm() {
       const validation = isExitAfterEntry(entryDate, entryTime, exitDate, exitTime);
       if (!validation.valid) {
         alert(
-          validation.message + 
-          '\n\nEntry: ' + entryDate + ' at ' + entryTime + 
+          validation.message +
+          '\n\nEntry: ' + entryDate + ' at ' + entryTime +
           '\nExit: ' + exitDate + ' at ' + exitTime +
           '\n\nPlease fix the exit time!'
         );
@@ -628,9 +672,24 @@ export default function TradeForm() {
 
     try {
       const tradeData = {
-        ...formData,
+        symbol: formData.symbol.toUpperCase(),
+        asset_type: formData.asset_type,
+        trade_type: formData.trade_type,
+        entry_price: parseFloat(formData.entry_price),
+        exit_price: formData.exit_price ? parseFloat(formData.exit_price) : null,
+        stop_loss: formData.stop_loss ? parseFloat(formData.stop_loss) : null,
+        target_price: formData.target_price ? parseFloat(formData.target_price) : null,
+        quantity: parseInt(formData.quantity),
+        entry_time: formData.entry_time,
+        exit_time: formData.exit_time || null,
+        timeframe: formData.timeframe || null,
+        setup_type: formData.setup_type || null,
+        reason: formData.reason || null,
         screenshot_url: screenshotUrl || null,
       };
+
+      // ✅ DEBUG: Log what we're sending
+      console.log('📤 Sending trade data:', JSON.stringify(tradeData, null, 2));
 
       const response = await fetch('/api/trades', {
         method: 'POST',
@@ -645,7 +704,16 @@ export default function TradeForm() {
         router.push('/trades');
         router.refresh();
       } else {
-        alert('❌ Error: ' + (data.error || 'Failed to save trade'));
+        // ✅ Show detailed validation errors
+        console.error('❌ API Error:', data);
+        if (data.details && Array.isArray(data.details)) {
+          const errorMessages = data.details.map((err: any) =>
+            `• ${err.path.join('.')}: ${err.message}`
+          ).join('\n');
+          alert('❌ Validation Error:\n\n' + errorMessages);
+        } else {
+          alert('❌ Error: ' + (data.error || 'Failed to save trade'));
+        }
       }
     } catch (error: any) {
       alert('❌ Submit error: ' + error.message);
@@ -660,13 +728,13 @@ export default function TradeForm() {
   return (
     <div className="max-w-5xl mx-auto p-6">
       {/* Progress Bar */}
-      <div className="mb-6 bg-white rounded-lg shadow-md p-4">
+      <div className="mb-6 bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-blue-100 p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold text-gray-700">Form Completion</span>
           <span className="text-sm font-bold text-blue-600">{progress}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
-          <div 
+          <div
             className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
@@ -683,7 +751,7 @@ export default function TradeForm() {
             </div>
             <span className="text-lg font-bold text-blue-600">{currentTime}</span>
           </div>
-          
+
           <div className="flex items-center justify-between pt-2 border-t border-blue-200">
             <span className="text-sm font-medium text-blue-900">
               Market Status ({marketInfo?.name || 'N/A'})
@@ -693,8 +761,8 @@ export default function TradeForm() {
         </div>
 
         {/* Template Section */}
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div 
+        <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-2xl border border-gray-200/50 p-4 bg-gradient-to-br from-white/80 to-gray-50/30">
+          <div
             className="flex items-center justify-between cursor-pointer"
             onClick={() => toggleSection('templates')}
           >
@@ -706,7 +774,7 @@ export default function TradeForm() {
               {collapsedSections.has('templates') ? '▼' : '▲'}
             </span>
           </div>
-          
+
           {!collapsedSections.has('templates') && (
             <div className="mt-4">
               <div className="flex flex-wrap gap-2">
@@ -741,8 +809,8 @@ export default function TradeForm() {
         </div>
 
         {/* Basic Info Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div 
+        <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-2xl border border-blue-100/50 p-6 bg-gradient-to-br from-white/80 to-blue-50/30">
+          <div
             className="flex items-center justify-between cursor-pointer mb-4"
             onClick={() => toggleSection('basic')}
           >
@@ -769,19 +837,25 @@ export default function TradeForm() {
                   onChange={handleChange}
                   onFocus={() => setShowSymbolSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSymbolSuggestions(false), 200)}
-                  placeholder="e.g., AAPL, NIFTY"
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 uppercase ${
-                    validation.symbol?.valid ? 'border-green-500' : 'border-gray-300'
-                  }`}
+                  placeholder="E.G., NIFTY, BANKNIFTY, SENSEX"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 uppercase ${validation.symbol?.valid ? 'border-green-500' : 'border-gray-300'
+                    }`}
                   required
                 />
                 {validation.symbol?.valid && (
                   <span className="absolute right-3 top-9 text-green-500">✓</span>
                 )}
                 {showSymbolSuggestions && recentSymbols.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600">
+                      📌 Indian Market Symbols
+                    </div>
                     {recentSymbols
-                      .filter(s => s.includes(formData.symbol.toUpperCase()))
+                      .filter(s => {
+                        const input = formData.symbol.toUpperCase().trim();
+                        // Show all symbols if input is empty, otherwise filter by prefix match
+                        return input === '' || s.toUpperCase().startsWith(input);
+                      })
                       .map((symbol, idx) => (
                         <button
                           key={idx}
@@ -790,7 +864,7 @@ export default function TradeForm() {
                             setFormData(prev => ({ ...prev, symbol }));
                             setShowSymbolSuggestions(false);
                           }}
-                          className="w-full text-left px-3 py-2 hover:bg-blue-50"
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 font-medium text-gray-800 border-b border-gray-100 last:border-b-0"
                         >
                           {symbol}
                         </button>
@@ -811,8 +885,6 @@ export default function TradeForm() {
                   required
                 >
                   <option value="stock">📈 Stock</option>
-                  <option value="forex">💱 Forex</option>
-                  <option value="crypto">₿ Crypto</option>
                   <option value="option">📊 Option</option>
                 </select>
               </div>
@@ -876,8 +948,8 @@ export default function TradeForm() {
         </div>
 
         {/* Pricing Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div 
+        <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-2xl border border-green-100/50 p-6 bg-gradient-to-br from-white/80 to-green-50/30">
+          <div
             className="flex items-center justify-between cursor-pointer mb-4"
             onClick={() => toggleSection('pricing')}
           >
@@ -904,9 +976,8 @@ export default function TradeForm() {
                     value={formData.entry_price}
                     onChange={handleChange}
                     placeholder="100.50"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                      validation.entry_price?.valid ? 'border-green-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validation.entry_price?.valid ? 'border-green-500' : 'border-gray-300'
+                      }`}
                     required
                   />
                 </div>
@@ -921,9 +992,8 @@ export default function TradeForm() {
                     value={formData.quantity}
                     onChange={handleChange}
                     placeholder="10"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                      validation.quantity?.valid ? 'border-green-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validation.quantity?.valid ? 'border-green-500' : 'border-gray-300'
+                      }`}
                     required
                   />
                   <div className="flex gap-2 mt-1">
@@ -1004,7 +1074,7 @@ export default function TradeForm() {
               </div>
 
               {riskMetrics.riskAmount > 0 && (
-                <div className="mt-4 p-4 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-lg">
+                <div className="mt-4 p-4 bg-gradient-to-r from-orange-50/90 to-red-50/90 backdrop-blur-sm border-2 border-orange-300/60 rounded-lg shadow-xl">
                   <h4 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
                     <span>⚠️</span>
                     Risk Analysis
@@ -1045,8 +1115,8 @@ export default function TradeForm() {
         </div>
 
         {/* ✅ FIXED TIMING SECTION - Simplified */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div 
+        <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-2xl border border-purple-100/50 p-6 bg-gradient-to-br from-white/80 to-purple-50/30">
+          <div
             className="flex items-center justify-between cursor-pointer mb-4"
             onClick={() => toggleSection('timing')}
           >
@@ -1069,8 +1139,8 @@ export default function TradeForm() {
                     onClick={() => setQuickTime('now')}
                     className="px-3 py-1 bg-blue-500 text-white text-sm rounded-full hover:bg-blue-600"
                   >
-                    {isMarketOpen(new Date(), formData.asset_type).valid || formData.asset_type === 'crypto' 
-                      ? '⏰ Now' 
+                    {isMarketOpen(new Date(), formData.asset_type).valid || formData.asset_type === 'crypto'
+                      ? '⏰ Now'
                       : '⏰ Last Close'}
                   </button>
                   <button
@@ -1115,15 +1185,15 @@ export default function TradeForm() {
                       value={entryDate}
                       onChange={(e) => {
                         const selectedDate = e.target.value;
-                        
+
                         // ✅ Validate market day
                         if (!isMarketDay(selectedDate) && formData.asset_type !== 'crypto') {
                           alert('❌ Weekend trades not allowed! Select Monday-Friday only.');
                           return;
                         }
-                        
+
                         setEntryDate(selectedDate);
-                        
+
                         // ✅ Auto-clear exit if it becomes invalid
                         if (exitDate && selectedDate > exitDate) {
                           setExitDate('');
@@ -1139,16 +1209,16 @@ export default function TradeForm() {
                       value={entryTime}
                       onChange={(e) => {
                         const selectedTime = e.target.value;
-                        
+
                         // ✅ Validate market hours
                         if (!isWithinMarketHours(selectedTime, formData.asset_type)) {
                           const config = MARKET_HOURS[formData.asset_type as keyof typeof MARKET_HOURS];
                           alert(`❌ Trades allowed only during market hours: ${String(config.openTime.hour).padStart(2, '0')}:${String(config.openTime.minute).padStart(2, '0')} - ${String(config.closeTime.hour).padStart(2, '0')}:${String(config.closeTime.minute).padStart(2, '0')}`);
                           return;
                         }
-                        
+
                         setEntryTime(selectedTime);
-                        
+
                         // ✅ Validate exit is still after entry
                         if (exitDate && exitTime) {
                           const validation = isExitAfterEntry(entryDate, selectedTime, exitDate, exitTime);
@@ -1177,21 +1247,26 @@ export default function TradeForm() {
                       type="date"
                       value={exitDate}
                       onChange={(e) => {
+                        // ✅ Just set the value, validate later on blur
+                        setExitDate(e.target.value);
+                      }}
+                      onBlur={(e) => {
                         const selectedDate = e.target.value;
-                        
+                        if (!selectedDate) return; // Allow clearing
+
                         // ✅ Block if before entry date
                         if (entryDate && selectedDate < entryDate) {
                           alert('❌ Exit date cannot be before entry date!');
+                          setExitDate('');
                           return;
                         }
-                        
+
                         // ✅ Validate market day
                         if (!isMarketDay(selectedDate) && formData.asset_type !== 'crypto') {
                           alert('❌ Weekend trades not allowed! Select Monday-Friday only.');
+                          setExitDate('');
                           return;
                         }
-                        
-                        setExitDate(selectedDate);
                       }}
                       max={maxDateTime}
                       min={entryDate}
@@ -1201,28 +1276,38 @@ export default function TradeForm() {
                       type="time"
                       value={exitTime}
                       onChange={(e) => {
+                        // ✅ Just set the value, validate later on blur
+                        setExitTime(e.target.value);
+                      }}
+                      onBlur={(e) => {
                         const selectedTime = e.target.value;
-                        
+                        if (!selectedTime) return; // Allow clearing
+
                         if (!exitDate) {
                           alert('⚠️ Please select exit date first!');
+                          setExitTime('');
                           return;
                         }
-                        
+
                         // ✅ Validate market hours
                         if (!isWithinMarketHours(selectedTime, formData.asset_type)) {
                           const config = MARKET_HOURS[formData.asset_type as keyof typeof MARKET_HOURS];
-                          alert(`❌ Trades allowed only during market hours: ${String(config.openTime.hour).padStart(2, '0')}:${String(config.openTime.minute).padStart(2, '0')} - ${String(config.closeTime.hour).padStart(2, '0')}:${String(config.closeTime.minute).padStart(2, '0')}`);
+                          alert(`❌ Exit time must be during market hours: ${String(config.openTime.hour).padStart(2, '0')}:${String(config.openTime.minute).padStart(2, '0')} - ${String(config.closeTime.hour).padStart(2, '0')}:${String(config.closeTime.minute).padStart(2, '0')}`);
+                          setExitTime('');
                           return;
                         }
-                        
-                        // ✅ CRITICAL: Validate exit is AFTER entry
-                        const validation = isExitAfterEntry(entryDate, entryTime, exitDate, selectedTime);
-                        if (!validation.valid) {
-                          alert(validation.message + '\n\nEntry: ' + entryDate + ' at ' + entryTime + '\nExit: ' + exitDate + ' at ' + selectedTime);
-                          return;
+
+                        // ✅ Validate exit is AFTER entry
+                        if (entryDate && entryTime) {
+                          const validation = isExitAfterEntry(entryDate, entryTime, exitDate, selectedTime);
+                          if (!validation.valid) {
+                            alert(validation.message + '\n\n' +
+                              'Entry: ' + entryDate + ' at ' + entryTime + '\n' +
+                              'Exit: ' + exitDate + ' at ' + selectedTime);
+                            setExitTime('');
+                            return;
+                          }
                         }
-                        
-                        setExitTime(selectedTime);
                       }}
                       step="60"
                       min={entryDate === exitDate ? entryTime : undefined}
@@ -1239,8 +1324,8 @@ export default function TradeForm() {
         </div>
 
         {/* Notes */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div 
+        <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-2xl border border-teal-100/50 p-6 bg-gradient-to-br from-white/80 to-teal-50/30">
+          <div
             className="flex items-center justify-between cursor-pointer mb-4"
             onClick={() => toggleSection('notes')}
           >
@@ -1266,8 +1351,8 @@ export default function TradeForm() {
         </div>
 
         {/* Screenshot Upload */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div 
+        <div className="bg-white/70 backdrop-blur-md rounded-xl shadow-2xl border border-indigo-100/50 p-6 bg-gradient-to-br from-white/80 to-indigo-50/30">
+          <div
             className="flex items-center justify-between cursor-pointer mb-4"
             onClick={() => toggleSection('screenshot')}
           >
@@ -1287,11 +1372,10 @@ export default function TradeForm() {
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragActive 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 bg-gray-50'
-                }`}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 bg-gray-50'
+                  }`}
               >
                 <input
                   ref={fileInputRef}
@@ -1301,7 +1385,7 @@ export default function TradeForm() {
                   disabled={uploadingImage}
                   className="hidden"
                 />
-                
+
                 {!screenshotUrl && !uploadingImage && (
                   <div>
                     <div className="text-6xl mb-4">📷</div>

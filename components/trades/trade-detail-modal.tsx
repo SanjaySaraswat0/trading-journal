@@ -36,11 +36,11 @@ interface TradeDetailModalProps {
   onUpdate?: () => void;
 }
 
-export default function TradeDetailModal({ 
-  trade, 
-  isOpen, 
-  onClose, 
-  onUpdate 
+export default function TradeDetailModal({
+  trade,
+  isOpen,
+  onClose,
+  onUpdate
 }: TradeDetailModalProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState(trade);
@@ -154,7 +154,7 @@ export default function TradeDetailModal({
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               ) : (
-                <p className="text-lg font-semibold">${trade.entry_price}</p>
+                <p className="text-lg font-semibold">{trade.entry_price}</p>
               )}
             </div>
             <div>
@@ -169,7 +169,7 @@ export default function TradeDetailModal({
                 />
               ) : (
                 <p className="text-lg font-semibold">
-                  {trade.exit_price ? `$${trade.exit_price}` : 'Open'}
+                  {trade.exit_price ? trade.exit_price : 'Open'}
                 </p>
               )}
             </div>
@@ -188,7 +188,7 @@ export default function TradeDetailModal({
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               ) : (
-                <p className="text-lg">{trade.stop_loss ? `$${trade.stop_loss}` : '-'}</p>
+                <p className="text-lg">{trade.stop_loss ? trade.stop_loss : '-'}</p>
               )}
             </div>
             <div>
@@ -202,7 +202,7 @@ export default function TradeDetailModal({
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               ) : (
-                <p className="text-lg">{trade.target_price ? `$${trade.target_price}` : '-'}</p>
+                <p className="text-lg">{trade.target_price ? trade.target_price : '-'}</p>
               )}
             </div>
           </div>
@@ -233,7 +233,7 @@ export default function TradeDetailModal({
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               ) : (
-                <p className="text-lg font-semibold">${trade.position_size}</p>
+                <p className="text-lg font-semibold">{trade.position_size}</p>
               )}
             </div>
           </div>
@@ -242,10 +242,9 @@ export default function TradeDetailModal({
           {trade.pnl !== null && trade.pnl !== undefined && (
             <div className="bg-gray-50 rounded-lg p-4">
               <label className="block text-sm font-medium text-gray-600 mb-1">Profit & Loss</label>
-              <p className={`text-2xl font-bold ${
-                trade.pnl > 0 ? 'text-green-600' : trade.pnl < 0 ? 'text-red-600' : 'text-gray-600'
-              }`}>
-                ${trade.pnl.toFixed(2)} ({trade.pnl_percentage?.toFixed(2)}%)
+              <p className={`text-2xl font-bold ${trade.pnl > 0 ? 'text-green-600' : trade.pnl < 0 ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                {trade.pnl.toFixed(2)} ({trade.pnl_percentage?.toFixed(2)}%)
               </p>
             </div>
           )}
@@ -339,12 +338,11 @@ export default function TradeDetailModal({
           {/* Status Badge */}
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-              trade.status === 'win' ? 'bg-green-100 text-green-800' :
-              trade.status === 'loss' ? 'bg-red-100 text-red-800' :
-              trade.status === 'breakeven' ? 'bg-gray-100 text-gray-800' :
-              'bg-blue-100 text-blue-800'
-            }`}>
+            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${trade.status === 'win' ? 'bg-green-100 text-green-800' :
+                trade.status === 'loss' ? 'bg-red-100 text-red-800' :
+                  trade.status === 'breakeven' ? 'bg-gray-100 text-gray-800' :
+                    'bg-blue-100 text-blue-800'
+              }`}>
               {trade.status.toUpperCase()}
             </span>
           </div>

@@ -7,7 +7,18 @@ import { authOptions } from '@/lib/auth/options';
 import { createServiceClient } from '@/lib/supabase/service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+async function callGeminiDirect(prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 8192 } }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(`Gemini ${res.status}: ${e.substring(0, 200)}`); }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
 
 interface Trade {
   id: string;
@@ -34,14 +45,14 @@ function detectAdvancedPatterns(trades: Trade[]) {
   const closedTrades = trades.filter(t => t.exit_price && t.pnl !== null);
   const winningTrades = closedTrades.filter(t => t.pnl! > 0);
   const losingTrades = closedTrades.filter(t => t.pnl! < 0);
-  
+
   // 1. TIME-BASED MISTAKE ANALYSIS
   const hourlyMistakes: any = {};
   const hourlyPerformance: any = {};
-  
+
   trades.forEach(trade => {
     const hour = new Date(trade.entry_time).getHours();
-    
+
     if (!hourlyPerformance[hour]) {
       hourlyPerformance[hour] = {
         wins: 0,
@@ -51,7 +62,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
         mistakes: []
       };
     }
-    
+
     if (trade.pnl !== null && trade.exit_price) {
       if (trade.pnl > 0) {
         hourlyPerformance[hour].wins++;
@@ -61,7 +72,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
       hourlyPerformance[hour].totalPnL += trade.pnl;
       hourlyPerformance[hour].trades.push(trade.symbol);
     }
-    
+
     // Detect mistakes per hour
     if (!trade.stop_loss) hourlyPerformance[hour].mistakes.push('No Stop Loss');
     if (!trade.target_price) hourlyPerformance[hour].mistakes.push('No Target');
@@ -69,14 +80,14 @@ function detectAdvancedPatterns(trades: Trade[]) {
       hourlyPerformance[hour].mistakes.push('No Reason');
     }
   });
-  
+
   // Find worst trading hours (most mistakes + losses)
   const worstHours = Object.entries(hourlyPerformance)
     .filter(([hour, stats]: [string, any]) => stats.trades.length >= 2)
     .map(([hour, stats]: [string, any]) => ({
       hour: parseInt(hour),
-      winRate: stats.wins + stats.losses > 0 
-        ? (stats.wins / (stats.wins + stats.losses) * 100) 
+      winRate: stats.wins + stats.losses > 0
+        ? (stats.wins / (stats.wins + stats.losses) * 100)
         : 0,
       mistakes: stats.mistakes.length,
       pnl: stats.totalPnL,
@@ -84,10 +95,10 @@ function detectAdvancedPatterns(trades: Trade[]) {
     }))
     .sort((a, b) => a.winRate - b.winRate)
     .slice(0, 3);
-  
+
   // 2. SETUP-WISE MISTAKE DETECTION
   const setupAnalysis: any = {};
-  
+
   closedTrades.forEach(trade => {
     const setup = trade.setup_type || 'unknown';
     if (!setupAnalysis[setup]) {
@@ -106,7 +117,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
         }
       };
     }
-    
+
     if (trade.pnl! > 0) {
       setupAnalysis[setup].wins++;
     } else {
@@ -117,14 +128,14 @@ function detectAdvancedPatterns(trades: Trade[]) {
       symbol: trade.symbol,
       pnl: trade.pnl
     });
-    
+
     // Count mistakes per setup
     if (!trade.stop_loss) setupAnalysis[setup].mistakes.noStopLoss++;
     if (!trade.target_price) setupAnalysis[setup].mistakes.noTarget++;
     if (!trade.reason || trade.reason === 'Imported from Excel') {
       setupAnalysis[setup].mistakes.noReason++;
     }
-    
+
     // Check Risk-Reward
     if (trade.stop_loss && trade.target_price) {
       const risk = Math.abs(trade.entry_price - trade.stop_loss);
@@ -134,24 +145,24 @@ function detectAdvancedPatterns(trades: Trade[]) {
       }
     }
   });
-  
+
   // Calculate avg win/loss per setup
   Object.keys(setupAnalysis).forEach(setup => {
     const stats = setupAnalysis[setup];
     const wins = stats.trades.filter((t: any) => t.pnl > 0);
     const losses = stats.trades.filter((t: any) => t.pnl < 0);
-    
-    stats.avgWin = wins.length > 0 
-      ? wins.reduce((sum: number, t: any) => sum + t.pnl, 0) / wins.length 
+
+    stats.avgWin = wins.length > 0
+      ? wins.reduce((sum: number, t: any) => sum + t.pnl, 0) / wins.length
       : 0;
-    stats.avgLoss = losses.length > 0 
+    stats.avgLoss = losses.length > 0
       ? Math.abs(losses.reduce((sum: number, t: any) => sum + t.pnl, 0) / losses.length)
       : 0;
   });
-  
+
   // 3. EMOTIONAL PATTERN DETECTION
   const emotionalPatterns: any = {};
-  
+
   trades.forEach(trade => {
     if (trade.emotions && trade.emotions.length > 0) {
       trade.emotions.forEach(emotion => {
@@ -163,7 +174,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
             trades: []
           };
         }
-        
+
         emotionalPatterns[emotion].count++;
         if (trade.pnl !== null && trade.exit_price) {
           if (trade.pnl > 0) {
@@ -179,13 +190,13 @@ function detectAdvancedPatterns(trades: Trade[]) {
       });
     }
   });
-  
+
   // 4. CONSECUTIVE LOSS PATTERN
   let maxLossStreak = 0;
   let currentLossStreak = 0;
   let lossStreakTrades: string[] = [];
   let currentStreakTrades: string[] = [];
-  
+
   closedTrades.forEach(trade => {
     if (trade.pnl! < 0) {
       currentLossStreak++;
@@ -199,15 +210,15 @@ function detectAdvancedPatterns(trades: Trade[]) {
       currentStreakTrades = [];
     }
   });
-  
+
   // 5. DAY-OF-WEEK ANALYSIS
   const dayOfWeekPerformance: any = {};
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  
+
   closedTrades.forEach(trade => {
     const day = new Date(trade.entry_time).getDay();
     const dayName = dayNames[day];
-    
+
     if (!dayOfWeekPerformance[dayName]) {
       dayOfWeekPerformance[dayName] = {
         wins: 0,
@@ -216,7 +227,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
         trades: []
       };
     }
-    
+
     if (trade.pnl! > 0) {
       dayOfWeekPerformance[dayName].wins++;
     } else {
@@ -225,7 +236,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
     dayOfWeekPerformance[dayName].totalPnL += trade.pnl!;
     dayOfWeekPerformance[dayName].trades.push(trade.symbol);
   });
-  
+
   // 6. RISK MANAGEMENT ANALYSIS
   const riskMetrics = {
     tradesWithoutStopLoss: trades.filter(t => !t.stop_loss).length,
@@ -234,7 +245,7 @@ function detectAdvancedPatterns(trades: Trade[]) {
     poorRiskRewardTrades: 0,
     overLeveragedTrades: 0
   };
-  
+
   trades.forEach(trade => {
     if (trade.stop_loss && trade.target_price) {
       const risk = Math.abs(trade.entry_price - trade.stop_loss);
@@ -243,14 +254,14 @@ function detectAdvancedPatterns(trades: Trade[]) {
         riskMetrics.poorRiskRewardTrades++;
       }
     }
-    
+
     // Check position sizing (assuming max 10% per trade)
     const positionPct = (trade.entry_price * trade.quantity) / 100000; // Assuming $100k account
     if (positionPct > 0.1) {
       riskMetrics.overLeveragedTrades++;
     }
   });
-  
+
   return {
     hourlyPerformance,
     worstHours,
@@ -269,11 +280,8 @@ function detectAdvancedPatterns(trades: Trade[]) {
   };
 }
 
-// Generate AI insights using Gemini
 async function generateAIInsights(patterns: any, trades: Trade[]) {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    
     const prompt = `You are an expert trading psychologist and analyst. Analyze this trader's performance data and provide deep, personalized insights.
 
 TRADER STATISTICS:
@@ -283,30 +291,29 @@ TRADER STATISTICS:
 - Max Losing Streak: ${patterns.lossStreak.maxStreak} trades
 
 WORST TRADING HOURS (Most Mistakes):
-${patterns.worstHours.map((h: any) => 
-  `- ${h.hour}:00 - Win Rate: ${h.winRate.toFixed(1)}%, Mistakes: ${h.mistakes}, Trades: ${h.tradeCount}`
-).join('\n')}
+${patterns.worstHours.map((h: any) =>
+      `- ${h.hour}:00 - Win Rate: ${h.winRate.toFixed(1)}%, Mistakes: ${h.mistakes}, Trades: ${h.tradeCount}`
+    ).join('\n')}
 
 SETUP PERFORMANCE:
-${Object.entries(patterns.setupAnalysis).map(([setup, stats]: [string, any]) => 
-  `- ${setup}: ${stats.wins}W/${stats.losses}L, Avg Win: $${stats.avgWin.toFixed(2)}, Avg Loss: $${stats.avgLoss.toFixed(2)}, Mistakes: ${JSON.stringify(stats.mistakes)}`
-).join('\n')}
+${Object.entries(patterns.setupAnalysis).map(([setup, stats]: [string, any]) =>
+      `- ${setup}: ${stats.wins}W/${stats.losses}L, Avg Win: \u20B9${stats.avgWin.toFixed(2)}, Avg Loss: \u20B9${stats.avgLoss.toFixed(2)}`
+    ).join('\n')}
 
 EMOTIONAL PATTERNS:
-${Object.entries(patterns.emotionalPatterns).map(([emotion, stats]: [string, any]) => 
-  `- ${emotion}: ${stats.count} times, Win Rate: ${stats.wins + stats.losses > 0 ? ((stats.wins / (stats.wins + stats.losses)) * 100).toFixed(1) : 0}%`
-).join('\n')}
+${Object.entries(patterns.emotionalPatterns).map(([emotion, stats]: [string, any]) =>
+      `- ${emotion}: ${stats.count} times, Win Rate: ${stats.wins + stats.losses > 0 ? ((stats.wins / (stats.wins + stats.losses)) * 100).toFixed(1) : 0}%`
+    ).join('\n')}
 
 RISK MANAGEMENT ISSUES:
 - Trades without Stop Loss: ${patterns.riskMetrics.tradesWithoutStopLoss}
 - Trades without Target: ${patterns.riskMetrics.tradesWithoutTarget}
 - Poor Risk-Reward Trades: ${patterns.riskMetrics.poorRiskRewardTrades}
-- Over-leveraged Trades: ${patterns.riskMetrics.overLeveragedTrades}
 
 DAY OF WEEK PERFORMANCE:
-${Object.entries(patterns.dayOfWeekPerformance).map(([day, stats]: [string, any]) => 
-  `- ${day}: ${stats.wins}W/${stats.losses}L, P&L: $${stats.totalPnL.toFixed(2)}`
-).join('\n')}
+${Object.entries(patterns.dayOfWeekPerformance).map(([day, stats]: [string, any]) =>
+      `- ${day}: ${stats.wins}W/${stats.losses}L, P&L: \u20B9${stats.totalPnL.toFixed(2)}`
+    ).join('\n')}
 
 Provide analysis in this EXACT JSON format:
 {
@@ -316,16 +323,16 @@ Provide analysis in this EXACT JSON format:
       "mistake": "Specific mistake description",
       "frequency": "How often this happens",
       "impact": "High | Medium | Low",
-      "examples": ["Trade example 1", "Trade example 2"],
+      "examples": ["Trade example 1"],
       "why_harmful": "Why this is a problem",
       "how_to_fix": "Detailed actionable steps to fix this"
     }
   ],
   "time_based_insights": {
-    "worst_trading_hours": ["10:00", "14:00"],
-    "best_trading_hours": ["11:00", "13:00"],
-    "worst_days": ["Monday", "Friday"],
-    "best_days": ["Tuesday", "Wednesday"],
+    "worst_trading_hours": ["10:00"],
+    "best_trading_hours": ["11:00"],
+    "worst_days": ["Monday"],
+    "best_days": ["Tuesday"],
     "recommendation": "When to trade and when to avoid"
   },
   "strongest_areas": [
@@ -336,10 +343,10 @@ Provide analysis in this EXACT JSON format:
     }
   ],
   "psychological_analysis": {
-    "detected_patterns": ["Pattern 1", "Pattern 2"],
-    "emotional_triggers": ["Trigger 1", "Trigger 2"],
+    "detected_patterns": ["Pattern 1"],
+    "emotional_triggers": ["Trigger 1"],
     "mental_state_score": 7,
-    "recommendations": ["Recommendation 1", "Recommendation 2"]
+    "recommendations": ["Recommendation 1"]
   },
   "setup_recommendations": {
     "avoid_setups": ["Setup to avoid"],
@@ -348,55 +355,47 @@ Provide analysis in this EXACT JSON format:
   },
   "risk_management_grade": "A | B | C | D | F",
   "risk_management_issues": [
-    {
-      "issue": "Specific issue",
-      "severity": "Critical | High | Medium | Low",
-      "fix": "How to fix"
-    }
+    { "issue": "Specific issue", "severity": "Critical | High | Medium | Low", "fix": "How to fix" }
   ],
   "next_30_days_plan": {
-    "immediate_actions": ["Action 1", "Action 2", "Action 3"],
-    "weekly_goals": ["Goal 1", "Goal 2"],
-    "habits_to_build": ["Habit 1", "Habit 2"],
-    "habits_to_break": ["Habit 1", "Habit 2"]
+    "immediate_actions": ["Action 1", "Action 2"],
+    "weekly_goals": ["Goal 1"],
+    "habits_to_build": ["Habit 1"],
+    "habits_to_break": ["Habit 1"]
   },
   "personalized_message": "A motivational, personalized message for this trader based on their data"
 }`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Extract JSON from response
+    const text = await callGeminiDirect(prompt);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
     return JSON.parse(text);
   } catch (error: any) {
-    console.error('❌ AI generation error:', error);
+    console.error('\u274c AI generation error:', error.message);
     return null;
   }
 }
 
+
+
+
 export async function POST(request: Request) {
   try {
     console.log('\n🔥 === ADVANCED AI ANALYSIS STARTED ===');
-    
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({
         error: 'Gemini API key not configured'
       }, { status: 500 });
     }
-    
+
     const supabase = createServiceClient();
-    
+
     // Fetch all trades
     console.log('📊 Fetching all trades...');
     const { data: trades, error: tradesError } = await supabase
@@ -404,31 +403,31 @@ export async function POST(request: Request) {
       .select('*')
       .eq('user_id', session.user.id)
       .order('entry_time', { ascending: false });
-    
+
     if (tradesError) {
       console.error('❌ Fetch error:', tradesError);
       return NextResponse.json({ error: tradesError.message }, { status: 500 });
     }
-    
+
     if (!trades || trades.length < 5) {
       return NextResponse.json({
         success: false,
         message: `Need at least 5 trades for advanced analysis. You have ${trades?.length || 0}.`
       });
     }
-    
+
     console.log(`✅ Analyzing ${trades.length} trades`);
-    
+
     // Detect advanced patterns
     console.log('🔍 Detecting advanced patterns...');
     const patterns = detectAdvancedPatterns(trades as any);
     console.log('✅ Patterns detected');
-    
+
     // Generate AI insights
     console.log('🤖 Generating AI insights...');
     const aiInsights = await generateAIInsights(patterns, trades as any);
     console.log('✅ AI insights generated');
-    
+
     const analysis = {
       user_id: session.user.id,
       analyzed_at: new Date().toISOString(),
@@ -441,14 +440,14 @@ export async function POST(request: Request) {
         win_rate: ((patterns.winningTrades / patterns.closedTrades) * 100).toFixed(1),
         worst_hours: patterns.worstHours.map((h: any) => `${h.hour}:00`),
         max_losing_streak: patterns.lossStreak.maxStreak,
-        biggest_risk_issue: patterns.riskMetrics.tradesWithoutStopLoss > patterns.totalTrades * 0.3 
-          ? 'No Stop Loss' 
+        biggest_risk_issue: patterns.riskMetrics.tradesWithoutStopLoss > patterns.totalTrades * 0.3
+          ? 'No Stop Loss'
           : patterns.riskMetrics.tradesWithoutTarget > patterns.totalTrades * 0.3
-          ? 'No Target Price'
-          : 'Good Risk Management'
+            ? 'No Target Price'
+            : 'Good Risk Management'
       }
     };
-    
+
     // Save to database using trade_analyses table (existing table)
     try {
       await supabase
@@ -465,14 +464,14 @@ export async function POST(request: Request) {
     } catch (saveError: any) {
       console.warn('⚠️ Save warning:', saveError.message);
     }
-    
+
     console.log('🔥 === ADVANCED AI ANALYSIS COMPLETED ===\n');
-    
+
     return NextResponse.json({
       success: true,
       analysis
     });
-    
+
   } catch (error: any) {
     console.error('❌ Analysis error:', error);
     return NextResponse.json({
@@ -488,9 +487,9 @@ export async function GET(request: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const supabase = createServiceClient();
-    
+
     // Get latest advanced analysis from trade_analyses table
     const { data, error } = await supabase
       .from('trade_analyses')
@@ -500,17 +499,18 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    
+
     return NextResponse.json({
       success: true,
       analysis: data?.ai_analysis || null
     });
-    
+
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

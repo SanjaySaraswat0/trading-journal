@@ -1,20 +1,15 @@
-import Image from "next/image";
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/options';
 
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold mb-4">
-        Trading Journal & Analysis
-      </h1>
+export default async function Home() {
+  const session = await getServerSession(authOptions);
 
-      <p className="text-gray-700 mb-6">
-        Log your trades, analyze mistakes, and improve your trading performance.
-      </p>
+  // If user is authenticated, redirect to dashboard
+  if (session?.user) {
+    redirect('/dashboard');
+  }
 
-      <button className="px-6 py-2 bg-black text-white rounded">
-        Add New Trade
-      </button>
-    </main>
-  );
+  // If not authenticated, redirect to login
+  redirect('/login');
 }
-

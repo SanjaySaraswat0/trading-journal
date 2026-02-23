@@ -1,5 +1,5 @@
 // components/trades/TradeChartModal.tsx
-// CLEAN VERSION: No duplicate imports
+
 
 'use client';
 
@@ -118,16 +118,17 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const chartWidth = 900;
-  const chartHeight = showVolume ? 500 : 450;
-  const volumeHeight = 80;
+  const chartWidth = 1000;
+  const chartHeight = showVolume ? 520 : 470;
+  const volumeHeight = 90;
   const padding = { top: 30, right: 70, bottom: 50, left: 70 };
   const innerWidth = chartWidth - padding.left - padding.right;
   const priceChartHeight = showVolume ? chartHeight - volumeHeight - 60 : chartHeight - padding.top - padding.bottom;
 
-  const allPrices = chartData.flatMap(d => [d.high, d.low]);
-  const minPrice = Math.min(...allPrices);
-  const maxPrice = Math.max(...allPrices);
+  // Safety checks for empty data
+  const allPrices = chartData.length > 0 ? chartData.flatMap(d => [d.high, d.low]) : [0];
+  const minPrice = chartData.length > 0 ? Math.min(...allPrices) : 0;
+  const maxPrice = chartData.length > 0 ? Math.max(...allPrices) : 100;
   const priceRange = maxPrice - minPrice;
   const pricePadding = priceRange * 0.15;
 
@@ -135,15 +136,19 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
   const yMax = maxPrice + pricePadding;
 
   const priceToY = (price: number) => {
+    if (!price || isNaN(price) || yMax === yMin) return padding.top;
     return padding.top + priceChartHeight - ((price - yMin) / (yMax - yMin)) * priceChartHeight;
   };
 
-  const maxVolume = Math.max(...chartData.map(d => d.volume || 0));
-  const volumeToHeight = (volume: number) => (volume / maxVolume) * volumeHeight;
+  const maxVolume = chartData.length > 0 ? Math.max(...chartData.map(d => d.volume || 0)) : 1;
+  const volumeToHeight = (volume: number) => {
+    if (!volume || isNaN(volume) || maxVolume === 0) return 0;
+    return (volume / maxVolume) * volumeHeight;
+  };
 
   const totalCandles = chartData.length;
-  const candleSpacing = 0.3;
-  const candleWidth = Math.max(3, Math.min(20, (innerWidth / totalCandles) * (1 - candleSpacing)));
+  const candleSpacing = 0.15;
+  const candleWidth = totalCandles > 0 ? Math.max(8, Math.min(35, (innerWidth / totalCandles) * (1 - candleSpacing))) : 8;
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
@@ -151,7 +156,9 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
     const rect = svgRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const candleIndex = Math.floor((mouseX - padding.left) / (innerWidth / chartData.length));
+    const actualChartWidth = Math.max(chartWidth, totalCandles * 25);
+    const actualInnerWidth = actualChartWidth - padding.left - padding.right;
+    const candleIndex = Math.floor((mouseX - padding.left) / (actualInnerWidth / chartData.length));
 
     if (candleIndex >= 0 && candleIndex < chartData.length) {
       setTooltip({
@@ -343,34 +350,42 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
               )}
 
               {/* CANDLESTICK CHART */}
-              <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 overflow-x-auto shadow-lg relative">
-                <svg 
-                  ref={svgRef}
-                  width={chartWidth} 
-                  height={chartHeight} 
-                  className="mx-auto"
-                  onMouseMove={handleMouseMove}
-                  onMouseLeave={handleMouseLeave}
-                >
-                  <rect width={chartWidth} height={chartHeight} fill="#fafafa" rx="8" />
+              <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 shadow-lg relative overflow-x-auto">
+                <div className="min-w-max">
+                  <svg 
+                    ref={svgRef}
+                    width={Math.max(chartWidth, totalCandles * 25)} 
+                    height={chartHeight} 
+                    className="mx-auto"
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                  >
+                    <rect width={Math.max(chartWidth, totalCandles * 25)} height={chartHeight} fill="#fafafa" rx="8" />
 
                   {/* Y-axis grid */}
-                  {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                  {chartData.length > 0 && [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
                     const y = padding.top + ratio * priceChartHeight;
                     const price = yMax - ratio * (yMax - yMin);
+                    const actualChartWidth = Math.max(chartWidth, totalCandles * 25);
+                    
+                    // Skip if values are invalid
+                    if (isNaN(y) || isNaN(price)) {
+                      return null;
+                    }
+                    
                     return (
                       <g key={ratio}>
                         <line
                           x1={padding.left}
                           y1={y}
-                          x2={chartWidth - padding.right}
+                          x2={actualChartWidth - padding.right}
                           y2={y}
                           stroke="#e0e0e0"
                           strokeWidth="1"
                           strokeDasharray="3,3"
                         />
                         <text
-                          x={chartWidth - padding.right + 10}
+                          x={actualChartWidth - padding.right + 10}
                           y={y + 4}
                           fontSize="11"
                           fill="#666"
@@ -383,33 +398,37 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                   })}
 
                   {/* Entry line */}
-                  <line
-                    x1={padding.left}
-                    y1={priceToY(trade.entry_price)}
-                    x2={chartWidth - padding.right}
-                    y2={priceToY(trade.entry_price)}
-                    stroke="#3b82f6"
-                    strokeWidth="3"
-                    strokeDasharray="8,4"
-                    opacity="0.8"
-                  />
-                  <text
-                    x={padding.left + 10}
-                    y={priceToY(trade.entry_price) - 8}
-                    fontSize="13"
-                    fill="#3b82f6"
-                    fontWeight="bold"
-                  >
-                    📈 Entry: ₹{trade.entry_price.toFixed(2)}
-                  </text>
+                  {chartData.length > 0 && trade.entry_price && !isNaN(priceToY(trade.entry_price)) && (
+                    <>
+                      <line
+                        x1={padding.left}
+                        y1={priceToY(trade.entry_price)}
+                        x2={Math.max(chartWidth, totalCandles * 25) - padding.right}
+                        y2={priceToY(trade.entry_price)}
+                        stroke="#3b82f6"
+                        strokeWidth="3"
+                        strokeDasharray="8,4"
+                        opacity="0.8"
+                      />
+                      <text
+                        x={padding.left + 10}
+                        y={priceToY(trade.entry_price) - 8}
+                        fontSize="13"
+                        fill="#3b82f6"
+                        fontWeight="bold"
+                      >
+                        📈 Entry: ₹{trade.entry_price.toFixed(2)}
+                      </text>
+                    </>
+                  )}
 
                   {/* Exit line */}
-                  {trade.exit_price && (
+                  {chartData.length > 0 && trade.exit_price && !isNaN(priceToY(trade.exit_price)) && (
                     <>
                       <line
                         x1={padding.left}
                         y1={priceToY(trade.exit_price)}
-                        x2={chartWidth - padding.right}
+                        x2={Math.max(chartWidth, totalCandles * 25) - padding.right}
                         y2={priceToY(trade.exit_price)}
                         stroke="#f97316"
                         strokeWidth="3"
@@ -430,7 +449,9 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
 
                   {/* Candlesticks */}
                   {chartData.map((candle, i) => {
-                    const x = padding.left + (i * innerWidth) / chartData.length + (innerWidth / chartData.length - candleWidth) / 2;
+                    const actualChartWidth = Math.max(chartWidth, totalCandles * 25);
+                    const actualInnerWidth = actualChartWidth - padding.left - padding.right;
+                    const x = padding.left + (i * actualInnerWidth) / chartData.length + (actualInnerWidth / chartData.length - candleWidth) / 2;
                     const isGreen = candle.close >= candle.open;
                     const color = isGreen ? '#10b981' : '#ef4444';
 
@@ -440,7 +461,12 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                     const yClose = priceToY(candle.close);
                     const yTop = Math.min(yOpen, yClose);
                     const yBottom = Math.max(yOpen, yClose);
-                    const bodyHeight = Math.max(2, Math.abs(yBottom - yTop));
+                    const bodyHeight = Math.max(3, Math.abs(yBottom - yTop));
+
+                    // Skip rendering if any value is invalid
+                    if (isNaN(yHigh) || isNaN(yLow) || isNaN(yTop) || isNaN(bodyHeight) || isNaN(x)) {
+                      return null;
+                    }
 
                     return (
                       <g key={i}>
@@ -450,7 +476,7 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                           x2={x + candleWidth / 2}
                           y2={yLow}
                           stroke={color}
-                          strokeWidth="2"
+                          strokeWidth="2.5"
                         />
                         <rect
                           x={x}
@@ -459,8 +485,8 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                           height={bodyHeight}
                           fill={color}
                           stroke={color}
-                          strokeWidth="1"
-                          opacity="0.9"
+                          strokeWidth="1.5"
+                          opacity="0.95"
                         />
                       </g>
                     );
@@ -468,11 +494,18 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
 
                   {/* Volume bars */}
                   {showVolume && chartData.map((candle, i) => {
-                    const x = padding.left + (i * innerWidth) / chartData.length + (innerWidth / chartData.length - candleWidth) / 2;
+                    const actualChartWidth = Math.max(chartWidth, totalCandles * 25);
+                    const actualInnerWidth = actualChartWidth - padding.left - padding.right;
+                    const x = padding.left + (i * actualInnerWidth) / chartData.length + (actualInnerWidth / chartData.length - candleWidth) / 2;
                     const volHeight = volumeToHeight(candle.volume || 0);
                     const volY = chartHeight - padding.bottom - volHeight;
                     const isGreen = candle.close >= candle.open;
                     const color = isGreen ? '#10b98150' : '#ef444450';
+
+                    // Skip if invalid values
+                    if (isNaN(x) || isNaN(volY) || isNaN(volHeight)) {
+                      return null;
+                    }
 
                     return (
                       <rect
@@ -489,7 +522,9 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                   {/* X-axis labels */}
                   {chartData.map((candle, i) => {
                     if (i % Math.ceil(chartData.length / 10) === 0) {
-                      const x = padding.left + (i * innerWidth) / chartData.length;
+                      const actualChartWidth = Math.max(chartWidth, totalCandles * 25);
+                      const actualInnerWidth = actualChartWidth - padding.left - padding.right;
+                      const x = padding.left + (i * actualInnerWidth) / chartData.length;
                       const label = actualInterval === '1d' ? formatDate(candle.time) : formatTime(candle.time);
                       return (
                         <text
@@ -508,6 +543,7 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                     return null;
                   })}
                 </svg>
+                </div>
 
                 {/* Tooltip */}
                 {tooltip.visible && tooltip.candle && (
@@ -576,6 +612,14 @@ export default function TradeChartModal({ trade, onClose }: TradeChartModalProps
                   <span className="text-gray-700">
                     Candle Width: <span className="font-bold text-purple-700">{candleWidth.toFixed(1)}px</span>
                   </span>
+                  {totalCandles * 25 > chartWidth && (
+                    <>
+                      <span className="text-gray-500">•</span>
+                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-semibold text-sm shadow-sm">
+                        ← → Scroll horizontally for full chart
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </>

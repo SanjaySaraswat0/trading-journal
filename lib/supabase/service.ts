@@ -9,7 +9,8 @@ export function createServiceClient() {
     throw new Error('Missing Supabase environment variables');
   }
 
-  return createClient<Database>(supabaseUrl, supabaseServiceKey, {
+  // Remove <Database> generic to disable strict typing (fixes 'never' type errors)
+  return createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

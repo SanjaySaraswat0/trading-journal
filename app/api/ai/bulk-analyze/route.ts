@@ -6,10 +6,20 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { createServiceClient } from '@/lib/supabase/service';
 import { detectTradeMistakes } from '@/lib/gemini/mistake-rules';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createTradeAnalysisPrompt } from '@/lib/gemini/prompts';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+async function callGeminiDirect(prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 4096 } }),
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(`Gemini ${res.status}: ${e.substring(0, 150)}`); }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
 
 interface Trade {
   id: string;
@@ -35,28 +45,21 @@ async function analyzeSingleTrade(trade: Trade, allTrades: Trade[]) {
   try {
     // Rule-based detection
     const mistakes = detectTradeMistakes(trade as any, allTrades as any);
-    
+
     // AI analysis (only for closed trades to save API calls)
     let aiAnalysis = null;
-    
+
     if (trade.exit_price && process.env.GEMINI_API_KEY) {
       try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
         const prompt = createTradeAnalysisPrompt(trade as any);
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
+        const text = await callGeminiDirect(prompt);
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          aiAnalysis = JSON.parse(jsonMatch[0]);
-        }
+        if (jsonMatch) aiAnalysis = JSON.parse(jsonMatch[0]);
       } catch (aiError) {
         console.log(`⚠️ AI analysis skipped for ${trade.symbol}`);
       }
     }
-    
+
     return {
       trade_id: trade.id,
       rule_mistakes: mistakes,
@@ -73,86 +76,86 @@ async function analyzeSingleTrade(trade: Trade, allTrades: Trade[]) {
 export async function POST(request: Request) {
   try {
     console.log('\n🟢 === BULK ANALYSIS STARTED ===');
-    
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const body = await request.json();
-    const { 
-      tradeIds = [], 
+    const {
+      tradeIds = [],
       analyzeAll = false,
       skipExisting = true,
-      limit = 100 
+      limit = 100
     } = body;
-    
+
     const supabase = createServiceClient();
-    
+
     let tradesToAnalyze: Trade[] = [];
-    
+
     if (analyzeAll) {
       // Analyze all user trades
       console.log('📊 Fetching all trades for analysis...');
-      
+
       let query = supabase
         .from('trades')
         .select('*')
         .eq('user_id', session.user.id)
         .order('entry_time', { ascending: false });
-      
+
       if (limit) {
         query = query.limit(limit);
       }
-      
+
       const { data, error } = await query;
-      
+
       if (error) {
         console.error('❌ Fetch error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       tradesToAnalyze = data || [];
-      
+
       // Skip trades that already have analysis
       if (skipExisting) {
         const { data: existingAnalyses } = await supabase
           .from('trade_analyses')
           .select('trade_id')
           .eq('user_id', session.user.id);
-        
+
         const analyzedTradeIds = new Set(
           (existingAnalyses || []).map((a: any) => a.trade_id)
         );
-        
+
         tradesToAnalyze = tradesToAnalyze.filter(
           (t) => !analyzedTradeIds.has(t.id)
         );
-        
+
         console.log(`✅ Found ${tradesToAnalyze.length} unanalyzed trades`);
       }
     } else if (tradeIds.length > 0) {
       // Analyze specific trades
       console.log(`📊 Fetching ${tradeIds.length} specific trades...`);
-      
+
       const { data, error } = await supabase
         .from('trades')
         .select('*')
         .eq('user_id', session.user.id)
         .in('id', tradeIds);
-      
+
       if (error) {
         console.error('❌ Fetch error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       tradesToAnalyze = data || [];
     } else {
       return NextResponse.json({
         error: 'Either tradeIds or analyzeAll must be provided',
       }, { status: 400 });
     }
-    
+
     if (tradesToAnalyze.length === 0) {
       return NextResponse.json({
         success: true,
@@ -161,9 +164,9 @@ export async function POST(request: Request) {
         skipped: 0,
       });
     }
-    
+
     console.log(`🔄 Analyzing ${tradesToAnalyze.length} trades...`);
-    
+
     // Get all user trades for context
     const { data: allUserTrades } = await supabase
       .from('trades')
@@ -171,23 +174,23 @@ export async function POST(request: Request) {
       .eq('user_id', session.user.id)
       .order('entry_time', { ascending: false })
       .limit(200);
-    
+
     const contextTrades = allUserTrades || [];
-    
+
     // Analyze each trade
     const results: any[] = [];
     const analysesToSave: any[] = [];
-    
+
     for (let i = 0; i < tradesToAnalyze.length; i++) {
       const trade = tradesToAnalyze[i];
-      
+
       console.log(`📝 [${i + 1}/${tradesToAnalyze.length}] Analyzing ${trade.symbol}...`);
-      
+
       const analysis = await analyzeSingleTrade(trade, contextTrades);
-      
+
       if (analysis) {
         results.push(analysis);
-        
+
         // Prepare for database insert
         analysesToSave.push({
           trade_id: trade.id,
@@ -198,33 +201,33 @@ export async function POST(request: Request) {
           confidence_score: analysis.ai_analysis?.overall_rating || 0,
         });
       }
-      
+
       // Add delay to avoid rate limiting (every 5 trades)
       if ((i + 1) % 5 === 0 && i < tradesToAnalyze.length - 1) {
         console.log('⏸️  Pausing to avoid rate limits...');
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
-    
+
     console.log(`✅ Analysis completed for ${results.length} trades`);
-    
+
     // Save to database
     if (analysesToSave.length > 0) {
       console.log('💾 Saving analyses to database...');
-      
+
       const { error: insertError } = await supabase
         .from('trade_analyses')
         .upsert(analysesToSave, {
           onConflict: 'trade_id',
         });
-      
+
       if (insertError) {
         console.error('⚠️ Save error:', insertError);
       } else {
         console.log(`💾 Saved ${analysesToSave.length} analyses`);
       }
     }
-    
+
     // Calculate summary statistics
     const totalMistakes = results.reduce(
       (sum, r) => sum + r.total_mistakes,
@@ -234,7 +237,7 @@ export async function POST(request: Request) {
       (sum, r) => sum + r.high_severity_count,
       0
     );
-    
+
     // Group mistakes by category
     const mistakeCategories: any = {
       RISK_MANAGEMENT: 0,
@@ -242,15 +245,15 @@ export async function POST(request: Request) {
       PSYCHOLOGY: 0,
       STRATEGY: 0,
     };
-    
+
     results.forEach((result) => {
       result.rule_mistakes.forEach((mistake: any) => {
         mistakeCategories[mistake.category]++;
       });
     });
-    
+
     console.log('🟢 === BULK ANALYSIS COMPLETED ===\n');
-    
+
     return NextResponse.json({
       success: true,
       analyzed: results.length,
@@ -263,7 +266,7 @@ export async function POST(request: Request) {
       },
       results,
     });
-    
+
   } catch (error: any) {
     console.error('❌ Bulk Analysis Error:', error);
     return NextResponse.json({
@@ -280,12 +283,12 @@ export async function GET(request: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { searchParams } = new URL(request.url);
     const tradeId = searchParams.get('tradeId');
-    
+
     const supabase = createServiceClient();
-    
+
     if (tradeId) {
       // Get analysis for specific trade
       const { data, error } = await supabase
@@ -294,7 +297,7 @@ export async function GET(request: Request) {
         .eq('trade_id', tradeId)
         .eq('user_id', session.user.id)
         .maybeSingle();
-      
+
       if (error) {
         console.error('Fetch error:', error);
         return NextResponse.json({
@@ -302,7 +305,7 @@ export async function GET(request: Request) {
           analysis: null,
         });
       }
-      
+
       return NextResponse.json({
         success: true,
         analysis: data,
@@ -315,19 +318,19 @@ export async function GET(request: Request) {
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(100);
-      
+
       if (error) {
         console.error('Fetch error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      
+
       return NextResponse.json({
         success: true,
         analyses: data || [],
         count: data?.length || 0,
       });
     }
-    
+
   } catch (error: any) {
     console.error('Fetch Error:', error);
     return NextResponse.json({
@@ -335,3 +338,4 @@ export async function GET(request: Request) {
     }, { status: 500 });
   }
 }
+
