@@ -53,13 +53,24 @@ async function fetchMarketData() {
         const data = await r.json();
         const meta = data?.chart?.result?.[0]?.meta;
         if (meta?.regularMarketPrice) {
-          const change = (meta.regularMarketPrice - meta.previousClose);
-          const changePct = ((change / meta.previousClose) * 100);
+          const price = meta.regularMarketPrice;
+          const prevClose = meta.previousClose || meta.chartPreviousClose;
+          
+          let changeStr = 'N/A';
+          let changePctStr = 'N/A';
+          
+          if (prevClose && prevClose > 0) {
+            const change = price - prevClose;
+            const changePct = (change / prevClose) * 100;
+            const sign = change > 0 ? '+' : '';
+            changeStr = `${sign}${change.toFixed(2)}`;
+            changePctStr = `${sign}${changePct.toFixed(2)}`;
+          }
+
           results[key] = {
-            price: meta.regularMarketPrice.toFixed(2),
-            prevClose: meta.previousClose?.toFixed(2),
-            change: change.toFixed(2),
-            changePct: changePct.toFixed(2),
+            price: price.toFixed(2),
+            change: changeStr,
+            changePct: changePctStr,
           };
         }
       } catch (_) { /* skip failed symbols */ }
@@ -72,8 +83,7 @@ function buildMarketSummary(data: Record<string, any>): string {
   const fmt = (key: string, label: string) => {
     const d = data[key];
     if (!d) return `${label}: N/A`;
-    const sign = parseFloat(d.change) >= 0 ? '+' : '';
-    return `${label}: ${d.price} (${sign}${d.change} / ${sign}${d.changePct}%)`;
+    return `${label}: ${d.price} (${d.change} / ${d.changePct}%)`;
   };
   return [
     '=== INDIAN MARKETS ===',
@@ -189,6 +199,32 @@ Return ONLY valid JSON (no markdown, no code blocks, no extra text):
     "sectorsToWatch": ["sector1", "sector2", "sector3"],
     "riskFactors": ["risk1", "risk2", "risk3"],
     "recommendation": "Clear, actionable recommendation for tomorrow"
+  },
+  "technicalIndicators": {
+    "nifty50": {
+      "rsi": { "value": "RSI(14) realistic number e.g. 54.2", "signal": "Overbought OR Oversold OR Neutral", "interpretation": "1 line interpretation" },
+      "macd": { "value": "MACD line value", "signal": "Bullish crossover OR Bearish crossover OR Neutral", "histogram": "positive or negative or flat" },
+      "movingAverages": {
+        "ma20": { "value": "20-day MA realistic level", "position": "Price above MA (bullish) OR Price below MA (bearish)" },
+        "ma50": { "value": "50-day MA realistic level", "position": "Price above MA (bullish) OR Price below MA (bearish)" },
+        "ma200": { "value": "200-day MA realistic level", "position": "Price above MA (bullish) OR Price below MA (bearish)" }
+      },
+      "bollingerBands": { "upper": "upper band level", "middle": "middle band level", "lower": "lower band level", "signal": "Near upper band (overbought) OR Near lower band (oversold) OR Middle zone (neutral)" },
+      "vwap": { "value": "VWAP realistic level", "signal": "Price above VWAP (bullish) OR Price below VWAP (bearish)" },
+      "overallSignal": "Strong Buy OR Buy OR Neutral OR Sell OR Strong Sell"
+    },
+    "bankNifty": {
+      "rsi": { "value": "RSI(14) realistic number", "signal": "Overbought OR Oversold OR Neutral", "interpretation": "1 line interpretation" },
+      "macd": { "value": "MACD line value", "signal": "Bullish crossover OR Bearish crossover OR Neutral", "histogram": "positive or negative or flat" },
+      "movingAverages": {
+        "ma20": { "value": "20-day MA realistic level", "position": "Price above MA (bullish) OR Price below MA (bearish)" },
+        "ma50": { "value": "50-day MA realistic level", "position": "Price above MA (bullish) OR Price below MA (bearish)" },
+        "ma200": { "value": "200-day MA realistic level", "position": "Price above MA (bullish) OR Price below MA (bearish)" }
+      },
+      "bollingerBands": { "upper": "upper band level", "middle": "middle band level", "lower": "lower band level", "signal": "Near upper band (overbought) OR Near lower band (oversold) OR Middle zone (neutral)" },
+      "vwap": { "value": "VWAP realistic level", "signal": "Price above VWAP (bullish) OR Price below VWAP (bearish)" },
+      "overallSignal": "Strong Buy OR Buy OR Neutral OR Sell OR Strong Sell"
+    }
   },
   "disclaimer": "Analysis based on live market data fetched at ${timeStr} IST and AI model analysis. Not SEBI registered financial advice. Trade at your own risk."
 }`;

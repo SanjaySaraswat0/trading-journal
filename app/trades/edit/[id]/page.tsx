@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ui/theme-toggle';
 
 interface TradeFormData {
   symbol: string;
@@ -179,19 +180,20 @@ export default function EditTradePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen theme-base">
       {/* NAVBAR */}
-      <nav className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10 shadow-sm">
+      <nav className="border-b px-4 py-3 sticky top-0 z-10 shadow-sm backdrop-blur-md theme-card">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/dashboard" className="text-xl font-bold text-blue-600">
             📊 Trading Journal
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/trades">
-              <button className="px-4 py-2 text-gray-700 hover:text-blue-600 font-medium">
+              <button className="px-4 py-2 hover:text-blue-600 font-medium transition-colors" style={{ color: 'var(--text-secondary)' }}>
                 ← Back to Trades
               </button>
             </Link>
+            <ThemeToggle />
           </div>
         </div>
       </nav>
@@ -450,7 +452,8 @@ export default function EditTradePage() {
               <button
                 type="button"
                 disabled={saving}
-                className="w-full px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
+                className="w-full px-8 py-4 border-2 rounded-lg font-semibold transition-colors"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-primary)', background: 'var(--bg-card)' }}
               >
                 Cancel
               </button>

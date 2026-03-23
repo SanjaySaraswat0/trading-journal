@@ -1,8 +1,8 @@
-// Shared Gemini helper — uses direct REST to v1 API to bypass SDK v1beta routing
-// gemini-2.5-flash is verified available on this API key via v1
+// Shared Gemini helper — uses direct REST to v1 API
+// gemini-1.5-flash is stable on v1; gemini-2.5-flash is only on v1beta
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 
 export async function callGeminiV1(prompt: string, maxTokens = 8192): Promise<string> {
@@ -16,7 +16,7 @@ export async function callGeminiV1(prompt: string, maxTokens = 8192): Promise<st
                 maxOutputTokens: maxTokens,
             },
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(55000),
     });
 
     if (!res.ok) {

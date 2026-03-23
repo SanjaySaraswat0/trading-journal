@@ -9,8 +9,10 @@ import { SkeletonCard } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import {
     Brain, Target, TrendingUp, AlertTriangle, Clock, BarChart3,
-    Zap, DollarSign, Calendar, RefreshCw, Sparkles, Award
+    Zap, DollarSign, Calendar, RefreshCw, Sparkles, Award, ArrowLeft
 } from 'lucide-react';
+import Link from 'next/link';
+import ThemeToggle from '@/components/ui/theme-toggle';
 
 interface CoachingData {
     profile: any;
@@ -120,7 +122,20 @@ export default function AIInsightsPage() {
     };
 
     return (
-        <PageTransition className="p-8 max-w-7xl mx-auto">
+        <div style={{ background: 'var(--bg-base)', minHeight: '100vh' }}>
+            <PageTransition className="p-8 max-w-7xl mx-auto">
+            {/* Top Navigation */}
+            <div className="flex justify-between items-center mb-6">
+                <Link href="/dashboard">
+                    <button className="flex items-center gap-2 px-4 py-2 font-semibold transition-colors glass-card glass-hover shadow-sm">
+                        <ArrowLeft className="w-5 h-5" /> Dashboard
+                    </button>
+                </Link>
+                <div className="glass-card px-2 py-1 shadow-sm">
+                    <ThemeToggle />
+                </div>
+            </div>
+
             {/* Hero Section */}
             <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
@@ -468,5 +483,6 @@ export default function AIInsightsPage() {
                 </AnimatedCard>
             )}
         </PageTransition>
+        </div>
     );
 }

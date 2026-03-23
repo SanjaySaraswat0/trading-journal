@@ -6,8 +6,10 @@ import { useEffect, useState } from 'react';
 import {
     TrendingUp, TrendingDown, Minus, Globe, Newspaper,
     Calendar, AlertTriangle, RefreshCw, Zap, BarChart3,
-    ArrowUpRight, ArrowDownRight, Clock, Info
+    ArrowUpRight, ArrowDownRight, Clock, Info, ArrowLeft
 } from 'lucide-react';
+import Link from 'next/link';
+import ThemeToggle from '@/components/ui/theme-toggle';
 import { toast } from 'sonner';
 
 export default function MarketOutlookPage() {
@@ -66,7 +68,7 @@ export default function MarketOutlookPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen theme-base">
             {/* Header */}
             <div className="bg-gradient-to-r from-indigo-900 via-purple-900 to-blue-900 text-white px-6 py-8">
                 <div className="max-w-6xl mx-auto">
@@ -85,16 +87,24 @@ export default function MarketOutlookPage() {
                                 </p>
                             )}
                         </div>
-                        <button
-                            onClick={fetchOutlook}
-                            disabled={loading}
-                            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm 
-                         text-white px-6 py-3 rounded-xl font-semibold transition-all 
-                         disabled:opacity-60 disabled:cursor-not-allowed border border-white/30"
-                        >
-                            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                            {loading ? 'Analysing...' : 'Get Tomorrow\'s Outlook'}
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <Link href="/dashboard">
+                                <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-4 py-3 rounded-xl font-semibold transition-all border border-white/20">
+                                    <ArrowLeft className="w-5 h-5" /> Dashboard
+                                </button>
+                            </Link>
+                            <ThemeToggle />
+                            <button
+                                onClick={fetchOutlook}
+                                disabled={loading}
+                                className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm 
+                             text-white px-6 py-3 rounded-xl font-semibold transition-all 
+                             disabled:opacity-60 disabled:cursor-not-allowed border border-white/30"
+                            >
+                                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                                {loading ? 'Analysing...' : 'Get Tomorrow\'s Outlook'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -177,16 +187,16 @@ export default function MarketOutlookPage() {
                                     { label: 'Sensex', data: outlook.marketSnapshot?.sensex, color: 'blue' },
                                     { label: 'Gift Nifty', data: outlook.marketSnapshot?.giftNifty, color: 'teal' },
                                 ].map(({ label, data, color }) => (
-                                    <div key={label} className={`bg-white rounded-xl p-5 shadow-sm border border-${color}-100`}>
-                                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">{label}</p>
-                                        <p className={`text-2xl font-black text-${color}-700`}>{data?.level || data?.indication || '—'}</p>
+                                    <div key={label} className="rounded-xl p-5 shadow-sm border theme-card">
+                                        <p className="text-xs font-semibold uppercase tracking-wide mb-1 theme-text-muted">{label}</p>
+                                        <p className="text-2xl font-black theme-text-primary">{data?.level || data?.indication || '—'}</p>
                                         {data?.change && (
-                                            <p className={`text-sm font-semibold mt-1 ${data.change?.toString().startsWith('-') ? 'text-red-600' : 'text-green-600'}`}>
+                                            <p className="text-sm font-semibold mt-1" style={{color: data.change?.toString().startsWith('-') ? 'var(--loss)' : 'var(--profit)'}}>
                                                 {data.change} ({data.changePercent})
                                             </p>
                                         )}
                                         {data?.indication && !data?.change && (
-                                            <p className="text-xs text-gray-500 mt-1">{data.indication}</p>
+                                            <p className="text-xs mt-1 theme-text-muted">{data.indication}</p>
                                         )}
                                     </div>
                                 ))}
@@ -208,18 +218,18 @@ export default function MarketOutlookPage() {
                                     const d = outlook.tomorrowOutlook?.[key];
                                     if (!d) return null;
                                     return (
-                                        <div key={key} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                        <div key={key} className="rounded-2xl shadow-sm border overflow-hidden theme-card">
                                             <div className="bg-gradient-to-r from-gray-800 to-gray-700 px-5 py-3 flex items-center justify-between">
                                                 <span className="text-white font-bold">{emoji} {label}</span>
-                                                <span className={`text-xs font-bold px-3 py-1 rounded-full border ${sentimentBg(d.bias)}`}>
+                                                <span className="text-xs font-bold px-3 py-1 rounded-full border border-white/20 text-white shadow-sm" style={{background:'rgba(0,0,0,0.2)'}}>
                                                     {d.bias}
                                                 </span>
                                             </div>
                                             <div className="p-5 space-y-4">
                                                 {d.expectedRange && (
-                                                    <div className="bg-blue-50 rounded-lg p-3">
-                                                        <p className="text-xs text-gray-500 mb-1">Expected Range Tomorrow</p>
-                                                        <p className="font-black text-xl text-blue-800">
+                                                    <div className="rounded-lg p-3 border theme-surface">
+                                                        <p className="text-xs mb-1 theme-text-muted">Expected Range Tomorrow</p>
+                                                        <p className="font-black text-xl theme-text-primary">
                                                             {d.expectedRange.low} — {d.expectedRange.high}
                                                         </p>
                                                     </div>
@@ -227,7 +237,7 @@ export default function MarketOutlookPage() {
                                                 {d.keySupport && (
                                                     <div className="flex gap-3">
                                                         <div className="flex-1">
-                                                            <p className="text-xs text-green-600 font-semibold mb-1">🛡️ Support</p>
+                                                            <p className="text-xs font-semibold mb-1 theme-text-profit">🛡️ Support</p>
                                                             {d.keySupport.map((s: string, i: number) => (
                                                                 <p key={i} className="text-sm font-mono font-bold text-green-700">{s}</p>
                                                             ))}
@@ -251,13 +261,15 @@ export default function MarketOutlookPage() {
                         {/* Global Markets */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                             {/* US Markets */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <div className="rounded-2xl p-5 border shadow-sm theme-card">
+                                <h3 className="font-bold mb-4 flex items-center gap-2 theme-text-primary">
                                     🇺🇸 US Markets
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ml-auto
-                    ${outlook.globalMarkets?.usMarkets?.sentiment === 'bullish' ? 'bg-green-100 text-green-700' :
-                                            outlook.globalMarkets?.usMarkets?.sentiment === 'bearish' ? 'bg-red-100 text-red-700' :
-                                                'bg-gray-100 text-gray-700'}`}>
+                                    <span className="text-xs px-2 py-0.5 rounded-full font-bold ml-auto border"
+                                        style={
+                                            outlook.globalMarkets?.usMarkets?.sentiment === 'bullish' ? { color: 'var(--profit)', borderColor: 'var(--profit)', background: 'transparent' } :
+                                            outlook.globalMarkets?.usMarkets?.sentiment === 'bearish' ? { color: 'var(--loss)', borderColor: 'var(--loss)', background: 'transparent' } :
+                                            { color: 'var(--text-muted)', borderColor: 'var(--border)', background: 'transparent' }
+                                        }>
                                         {outlook.globalMarkets?.usMarkets?.sentiment}
                                     </span>
                                 </h3>
@@ -267,22 +279,24 @@ export default function MarketOutlookPage() {
                                         { label: 'S&P 500', val: outlook.globalMarkets?.usMarkets?.sp500 },
                                         { label: 'Nasdaq', val: outlook.globalMarkets?.usMarkets?.nasdaq },
                                     ].map(({ label, val }) => (
-                                        <div key={label} className="text-center bg-gray-50 rounded-lg p-2">
-                                            <p className="text-xs text-gray-400">{label}</p>
-                                            <p className="font-bold text-sm text-gray-800">{val || '—'}</p>
+                                        <div key={label} className="text-center rounded-lg p-2 border theme-surface">
+                                            <p className="text-xs theme-text-muted">{label}</p>
+                                            <p className="font-bold text-sm theme-text-primary">{val || '—'}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
                             {/* Asian + Commodities */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <div className="rounded-2xl p-5 border shadow-sm theme-card">
+                                <h3 className="font-bold mb-4 flex items-center gap-2 theme-text-primary">
                                     🌏 Asian Markets & Macro
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ml-auto
-                    ${outlook.globalMarkets?.asianMarkets?.sentiment === 'bullish' ? 'bg-green-100 text-green-700' :
-                                            outlook.globalMarkets?.asianMarkets?.sentiment === 'bearish' ? 'bg-red-100 text-red-700' :
-                                                'bg-gray-100 text-gray-700'}`}>
+                                    <span className="text-xs px-2 py-0.5 rounded-full font-bold ml-auto border"
+                                        style={
+                                            outlook.globalMarkets?.asianMarkets?.sentiment === 'bullish' ? { color: 'var(--profit)', borderColor: 'var(--profit)', background: 'transparent' } :
+                                            outlook.globalMarkets?.asianMarkets?.sentiment === 'bearish' ? { color: 'var(--loss)', borderColor: 'var(--loss)', background: 'transparent' } :
+                                            { color: 'var(--text-muted)', borderColor: 'var(--border)', background: 'transparent' }
+                                        }>
                                         {outlook.globalMarkets?.asianMarkets?.sentiment}
                                     </span>
                                 </h3>
@@ -293,9 +307,9 @@ export default function MarketOutlookPage() {
                                         { label: '🛢️ Crude Oil', val: outlook.globalMarkets?.crudeoil },
                                         { label: '💵 USD/INR', val: outlook.globalMarkets?.usdInr },
                                     ].map(({ label, val }) => (
-                                        <div key={label} className="text-center bg-gray-50 rounded-lg p-2">
-                                            <p className="text-xs text-gray-400">{label}</p>
-                                            <p className="font-bold text-sm text-gray-800">{val || '—'}</p>
+                                        <div key={label} className="text-center rounded-lg p-2 border theme-surface">
+                                            <p className="text-xs theme-text-muted">{label}</p>
+                                            <p className="font-bold text-sm theme-text-primary">{val || '—'}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -304,27 +318,129 @@ export default function MarketOutlookPage() {
 
                         {/* FII/DII */}
                         {outlook.fiiDii && (
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                                <h3 className="font-bold text-gray-800 mb-4">💼 FII / DII Activity</h3>
+                            <div className="rounded-2xl p-5 border shadow-sm theme-card">
+                                <h3 className="font-bold mb-4 theme-text-primary">💼 FII / DII Activity</h3>
                                 <div className="grid grid-cols-3 gap-4">
-                                    <div className="text-center bg-blue-50 rounded-xl p-4">
-                                        <p className="text-xs text-gray-500 mb-1">FII (Foreign)</p>
-                                        <p className={`text-xl font-black ${outlook.fiiDii.fii?.toString().startsWith('-') ? 'text-red-600' : 'text-green-600'}`}>
+                                    <div className="text-center rounded-xl p-4 border theme-surface">
+                                        <p className="text-xs mb-1 theme-text-muted">FII (Foreign)</p>
+                                        <p className="text-xl font-black" style={{ color: outlook.fiiDii.fii?.toString().startsWith('-') ? 'var(--loss)' : 'var(--profit)' }}>
                                             {outlook.fiiDii.fii || '—'}
                                         </p>
                                     </div>
-                                    <div className="text-center bg-purple-50 rounded-xl p-4">
-                                        <p className="text-xs text-gray-500 mb-1">DII (Domestic)</p>
-                                        <p className={`text-xl font-black ${outlook.fiiDii.dii?.toString().startsWith('-') ? 'text-red-600' : 'text-green-600'}`}>
+                                    <div className="text-center rounded-xl p-4 border theme-surface">
+                                        <p className="text-xs mb-1 theme-text-muted">DII (Domestic)</p>
+                                        <p className="text-xl font-black" style={{ color: outlook.fiiDii.dii?.toString().startsWith('-') ? 'var(--loss)' : 'var(--profit)' }}>
                                             {outlook.fiiDii.dii || '—'}
                                         </p>
                                     </div>
-                                    <div className="text-center bg-gray-50 rounded-xl p-4">
-                                        <p className="text-xs text-gray-500 mb-1">Net Flow</p>
-                                        <p className={`text-xl font-black ${outlook.fiiDii.netFlow?.toString().startsWith('-') ? 'text-red-600' : 'text-green-600'}`}>
+                                    <div className="text-center rounded-xl p-4 border theme-surface">
+                                        <p className="text-xs mb-1 theme-text-muted">Net Flow</p>
+                                        <p className="text-xl font-black" style={{ color: outlook.fiiDii.netFlow?.toString().startsWith('-') ? 'var(--loss)' : 'var(--profit)' }}>
                                             {outlook.fiiDii.netFlow || '—'}
                                         </p>
                                     </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Technical Indicators */}
+                        {outlook.technicalIndicators && (
+                            <div>
+                                <h2 className="text-xl font-bold mb-5 flex items-center gap-2 theme-text-primary">
+                                    <BarChart3 className="w-6 h-6 text-indigo-500" />
+                                    Technical Indicator Analysis
+                                </h2>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {(['nifty50', 'bankNifty'] as const).map((key) => {
+                                        const ti = outlook.technicalIndicators?.[key];
+                                        if (!ti) return null;
+                                        const label = key === 'nifty50' ? '📈 Nifty 50' : '🏦 Bank Nifty';
+                                        const sigColor = ti.overallSignal?.toLowerCase().includes('strong buy') ? 'var(--profit)' :
+                                            ti.overallSignal?.toLowerCase().includes('buy') ? 'var(--profit)' :
+                                            ti.overallSignal?.toLowerCase().includes('strong sell') ? 'var(--loss)' :
+                                            ti.overallSignal?.toLowerCase().includes('sell') ? 'var(--loss)' : 'var(--text-muted)';
+                                        return (
+                                            <div key={key} className="rounded-2xl border overflow-hidden shadow-sm theme-card">
+                                                {/* Card Header */}
+                                                <div className="px-5 py-4 flex items-center justify-between border-b theme-surface">
+                                                    <h3 className="font-bold text-base theme-text-primary">{label}</h3>
+                                                    <span className="text-xs font-black px-3 py-1 rounded-full border-2" style={{color: sigColor, borderColor: sigColor}}>
+                                                        {ti.overallSignal || 'N/A'}
+                                                    </span>
+                                                </div>
+                                                <div className="p-5 space-y-4">
+                                                    {/* RSI */}
+                                                    <div className="flex items-center justify-between gap-4 rounded-xl p-3 border theme-surface">
+                                                        <div>
+                                                            <p className="text-xs font-semibold theme-text-muted">RSI (14)</p>
+                                                            <p className="text-xl font-black mt-0.5" style={{color: ti.rsi?.signal === 'Overbought' ? 'var(--loss)' : ti.rsi?.signal === 'Oversold' ? 'var(--profit)' : 'var(--text-primary)'}}>{ti.rsi?.value || '—'}</p>
+                                                            <p className="text-xs mt-0.5 theme-text-muted">{ti.rsi?.interpretation}</p>
+                                                        </div>
+                                                        <span className="text-xs px-2 py-1 rounded-full font-bold border whitespace-nowrap" style={{color: ti.rsi?.signal === 'Overbought' ? 'var(--loss)' : ti.rsi?.signal === 'Oversold' ? 'var(--profit)' : 'var(--text-muted)', borderColor: ti.rsi?.signal === 'Overbought' ? 'var(--loss)' : ti.rsi?.signal === 'Oversold' ? 'var(--profit)' : 'var(--border)'}}>
+                                                            {ti.rsi?.signal || '—'}
+                                                        </span>
+                                                    </div>
+                                                    {/* MACD */}
+                                                    <div className="flex items-center justify-between gap-4 rounded-xl p-3 border theme-surface">
+                                                        <div>
+                                                            <p className="text-xs font-semibold theme-text-muted">MACD</p>
+                                                            <p className="text-xl font-black mt-0.5 theme-text-primary">{ti.macd?.value || '—'}</p>
+                                                            <p className="text-xs mt-0.5" style={{color: ti.macd?.histogram === 'positive' ? 'var(--profit)' : ti.macd?.histogram === 'negative' ? 'var(--loss)' : 'var(--text-muted)'}}>Histogram: {ti.macd?.histogram}</p>
+                                                        </div>
+                                                        <span className="text-xs px-2 py-1 rounded-full font-bold border whitespace-nowrap" style={{color: ti.macd?.signal?.toLowerCase().includes('bullish') ? 'var(--profit)' : ti.macd?.signal?.toLowerCase().includes('bearish') ? 'var(--loss)' : 'var(--text-muted)', borderColor: ti.macd?.signal?.toLowerCase().includes('bullish') ? 'var(--profit)' : ti.macd?.signal?.toLowerCase().includes('bearish') ? 'var(--loss)' : 'var(--border)'}}>
+                                                            {ti.macd?.signal || '—'}
+                                                        </span>
+                                                    </div>
+                                                    {/* Moving Averages */}
+                                                    {ti.movingAverages && (
+                                                        <div className="rounded-xl p-3 border theme-surface">
+                                                            <p className="text-xs font-semibold mb-3 theme-text-muted">MOVING AVERAGES</p>
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                {[
+                                                                    { label: 'MA 20', d: ti.movingAverages.ma20 },
+                                                                    { label: 'MA 50', d: ti.movingAverages.ma50 },
+                                                                    { label: 'MA 200', d: ti.movingAverages.ma200 },
+                                                                ].map(({ label: maLabel, d }) => (
+                                                                    <div key={maLabel} className="text-center rounded-lg p-2 border theme-card">
+                                                                        <p className="text-xs font-bold theme-text-muted">{maLabel}</p>
+                                                                        <p className="font-black text-sm mt-1 theme-text-primary">{d?.value || '—'}</p>
+                                                                        <p className="text-xs mt-0.5" style={{color: d?.position?.toLowerCase().includes('above') ? 'var(--profit)' : 'var(--loss)'}}>
+                                                                            {d?.position?.toLowerCase().includes('above') ? '▲ Above' : '▼ Below'}
+                                                                        </p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {/* Bollinger Bands + VWAP row */}
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {ti.bollingerBands && (
+                                                            <div className="rounded-xl p-3 border theme-surface">
+                                                                <p className="text-xs font-semibold mb-2 theme-text-muted">BOLLINGER BANDS</p>
+                                                                <div className="text-xs space-y-1">
+                                                                    <div className="flex justify-between"><span className="theme-text-muted">Upper</span><span className="font-bold theme-text-loss">{ti.bollingerBands.upper}</span></div>
+                                                                    <div className="flex justify-between"><span className="theme-text-muted">Middle</span><span className="font-bold theme-text-primary">{ti.bollingerBands.middle}</span></div>
+                                                                    <div className="flex justify-between"><span className="theme-text-muted">Lower</span><span className="font-bold theme-text-profit">{ti.bollingerBands.lower}</span></div>
+                                                                </div>
+                                                                <p className="text-xs mt-2 font-semibold" style={{color: ti.bollingerBands.signal?.toLowerCase().includes('overbought') ? 'var(--loss)' : ti.bollingerBands.signal?.toLowerCase().includes('oversold') ? 'var(--profit)' : 'var(--text-muted)'}}>
+                                                                    {ti.bollingerBands.signal}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {ti.vwap && (
+                                                            <div className="rounded-xl p-3 border theme-surface">
+                                                                <p className="text-xs font-semibold mb-2 theme-text-muted">VWAP</p>
+                                                                <p className="text-2xl font-black theme-text-primary">{ti.vwap.value}</p>
+                                                                <p className="text-xs mt-2 font-semibold" style={{color: ti.vwap.signal?.toLowerCase().includes('above') ? 'var(--profit)' : 'var(--loss)'}}>
+                                                                    {ti.vwap.signal?.toLowerCase().includes('above') ? '▲ Price above VWAP' : '▼ Price below VWAP'}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -338,7 +454,7 @@ export default function MarketOutlookPage() {
                                 </h2>
                                 <div className="space-y-3">
                                     {outlook.majorNews.map((news: any, i: number) => (
-                                        <div key={i} className={`${impactBg(news.impact)} bg-white rounded-xl p-4`}>
+                                        <div key={i} className="border-l-4 rounded-xl p-4 shadow-sm border-r border-t border-b" style={{background:'var(--bg-card)', borderLeftColor: news.impact === 'Positive' ? 'var(--profit)' : news.impact === 'Negative' ? 'var(--loss)' : 'var(--text-muted)', borderTopColor: 'var(--border)', borderRightColor: 'var(--border)', borderBottomColor: 'var(--border)'}}>
                                             <div className="flex items-start gap-3">
                                                 <span className="text-xl mt-0.5">
                                                     {news.impact === 'Positive' ? '📈' : news.impact === 'Negative' ? '📉' : '📋'}
@@ -348,17 +464,19 @@ export default function MarketOutlookPage() {
                                                     {news.affectedSectors && news.affectedSectors.length > 0 && (
                                                         <div className="flex gap-1 mt-2 flex-wrap">
                                                             {news.affectedSectors.map((s: string, j: number) => (
-                                                                <span key={j} className="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded-full text-gray-600">
+                                                                <span key={j} className="text-xs border px-2 py-0.5 rounded-full" style={{background:'var(--bg-surface)', borderColor:'var(--border)', color:'var(--text-muted)'}}>
                                                                     {s}
                                                                 </span>
                                                             ))}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <span className={`text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap
-                          ${news.impact === 'Positive' ? 'bg-green-100 text-green-700' :
-                                                        news.impact === 'Negative' ? 'bg-red-100 text-red-700' :
-                                                            'bg-gray-100 text-gray-700'}`}>
+                                                <span className="text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap border"
+                                                    style={
+                                                        news.impact === 'Positive' ? { color: 'var(--profit)', borderColor: 'var(--profit)' } :
+                                                        news.impact === 'Negative' ? { color: 'var(--loss)', borderColor: 'var(--loss)' } :
+                                                        { color: 'var(--text-muted)', borderColor: 'var(--border)' }
+                                                    }>
                                                     {news.impact}
                                                 </span>
                                             </div>
@@ -377,16 +495,12 @@ export default function MarketOutlookPage() {
                                 </h2>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {outlook.upcomingEvents.map((event: any, i: number) => (
-                                        <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex items-center gap-4">
-                                            <div className={`w-2 h-12 rounded-full flex-shrink-0 
-                        ${event.expectedImpact === 'High' ? 'bg-red-500' :
-                                                    event.expectedImpact === 'Medium' ? 'bg-yellow-400' : 'bg-blue-400'}`} />
+                                        <div key={i} className="rounded-xl p-4 border shadow-sm flex items-center gap-4 theme-card">
+                                            <div className="w-2 h-12 rounded-full flex-shrink-0" style={{background: event.expectedImpact === 'High' ? 'var(--loss)' : event.expectedImpact === 'Medium' ? 'var(--warn)' : 'var(--blue)'}} />
                                             <div>
-                                                <p className="font-semibold text-gray-800">{event.event}</p>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    {event.time} • Impact: <span className={`font-bold
-                            ${event.expectedImpact === 'High' ? 'text-red-600' :
-                                                            event.expectedImpact === 'Medium' ? 'text-yellow-600' : 'text-blue-600'}`}>
+                                                <p className="font-semibold theme-text-primary">{event.event}</p>
+                                                <p className="text-xs mt-1 theme-text-muted">
+                                                    {event.time} • Impact: <span className="font-bold" style={{color: event.expectedImpact === 'High' ? 'var(--loss)' : event.expectedImpact === 'Medium' ? 'var(--warn)' : 'var(--blue)'}}>
                                                         {event.expectedImpact}
                                                     </span>
                                                 </p>

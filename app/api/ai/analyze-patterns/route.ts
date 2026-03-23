@@ -17,7 +17,7 @@ import { ZodError } from 'zod';
 // Direct REST call to v1 API — SDK routes to v1beta which doesn't support gemini-2.5-flash
 async function callGeminiDirect(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY || '';
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -25,7 +25,7 @@ async function callGeminiDirect(prompt: string): Promise<string> {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(55000),
   });
   if (!res.ok) {
     const errText = await res.text();

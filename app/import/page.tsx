@@ -187,52 +187,54 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+    <div className="min-h-screen p-4 md:p-8 theme-base">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <Link 
             href="/dashboard" 
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
+            className="inline-flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity theme-text-blue"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Import Trades</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold theme-text-primary">Import Trades</h1>
+          <p className="mt-2 theme-text-muted">
             Upload CSV or Excel file from your broker
           </p>
         </div>
 
         {/* Info Card */}
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
-          <h3 className="font-bold text-blue-900 mb-3">✅ Supported Files</h3>
+        <div className="border border-blue-500/30 rounded-lg p-6 mb-6 theme-card">
+          <h3 className="font-bold mb-3 flex items-center gap-2 theme-text-blue">
+             Supported Files
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="font-semibold text-blue-900 mb-1">File Types:</p>
-              <ul className="text-blue-800 space-y-1">
+              <p className="font-semibold mb-1 theme-text-primary">File Types:</p>
+              <ul className="space-y-1 theme-text-muted">
                 <li>• CSV files (.csv)</li>
                 <li>• Excel files (.xlsx, .xls)</li>
               </ul>
             </div>
             <div>
-              <p className="font-semibold text-blue-900 mb-1">Required Columns:</p>
-              <ul className="text-blue-800 space-y-1">
-                <li>• <strong>Symbol</strong> (stock/instrument name)</li>
-                <li>• <strong>Entry Price</strong> (buy price)</li>
-                <li>• <strong>Quantity</strong> (number of shares)</li>
+              <p className="font-semibold mb-1 theme-text-primary">Required Columns:</p>
+              <ul className="space-y-1 theme-text-muted">
+                <li>• <strong className="theme-text-primary">Symbol</strong> (stock/instrument name)</li>
+                <li>• <strong className="theme-text-primary">Entry Price</strong> (buy price)</li>
+                <li>• <strong className="theme-text-primary">Quantity</strong> (number of shares)</li>
               </ul>
             </div>
           </div>
-          <p className="text-xs text-blue-700 mt-3 bg-blue-100 p-2 rounded">
-            💡 <strong>Tip:</strong> Column names are flexible - "Symbol", "Stock", "Instrument" all work!
+          <p className="text-xs mt-3 p-2 rounded border border-blue-500/20" style={{background:'var(--bg-surface)', color:'var(--text-muted)'}}>
+            💡 <strong className="theme-text-primary">Tip:</strong> Column names are flexible - "Symbol", "Stock", "Instrument" all work!
           </p>
         </div>
 
         {/* Upload Area */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
-          <div className="border-3 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-500 hover:bg-blue-50 transition-all">
-            <FileSpreadsheet className="w-20 h-20 text-gray-400 mx-auto mb-4" />
+        <div className="rounded-lg shadow-sm p-8 mb-6 border theme-card">
+          <div className="border-2 border-dashed rounded-lg p-12 text-center transition-all cursor-pointer hover:border-blue-500 group theme-border-accent">
+            <FileSpreadsheet className="w-20 h-20 mx-auto mb-4 opacity-30 group-hover:opacity-60 transition-opacity theme-text-primary" />
             
             <label className="cursor-pointer">
               <input
@@ -241,18 +243,18 @@ export default function ImportPage() {
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <span className="inline-block bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-4 rounded-lg hover:from-blue-700 hover:to-blue-800 font-bold text-lg shadow-lg">
+              <span className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl hover:shadow-lg hover:scale-105 transition-all font-bold text-lg cursor-pointer">
                 <Upload className="w-5 h-5 inline mr-2" />
                 Choose File
               </span>
             </label>
 
             {file && (
-              <div className="mt-6 bg-green-50 border border-green-300 rounded-lg p-4">
-                <p className="text-green-900 font-semibold">
+              <div className="mt-6 border rounded-xl p-4 inline-block mx-auto min-w-[300px]" style={{background:'rgba(16, 185, 129, 0.1)', borderColor:'rgba(16, 185, 129, 0.3)'}}>
+                <p className="font-semibold text-green-600 dark:text-green-400">
                   ✓ {file.name}
                 </p>
-                <p className="text-sm text-green-700">
+                <p className="text-sm mt-1 opacity-80 theme-text-muted">
                   {(file.size / 1024).toFixed(2)} KB • {preview.length > 0 ? `${preview.length - 1} rows` : 'Parsing...'}
                 </p>
               </div>
@@ -262,34 +264,29 @@ export default function ImportPage() {
 
         {/* Preview */}
         {preview.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5" />
+          <div className="rounded-lg shadow-sm p-6 mb-6 border theme-card">
+            <h3 className="font-bold mb-4 flex items-center gap-2 theme-text-primary">
+              <FileSpreadsheet className="w-5 h-5 opacity-70" />
               Preview (First {Math.min(preview.length - 1, 6)} rows)
             </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
+            <div className="overflow-x-auto rounded-lg border theme-border">
+              <table className="w-full text-xs text-left">
+                <thead style={{background:'var(--bg-surface)', color:'var(--text-muted)'}}>
+                  <tr>
+                    <th className="px-3 py-3 font-semibold border-b theme-border">#</th>
+                    {preview[0]?.map((header: any, j: number) => (
+                      <th key={j} className="px-3 py-3 font-semibold border-b border-l truncate max-w-[150px] theme-border">
+                        {String(header)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
-                  {preview.map((row, i) => (
-                    <tr 
-                      key={i} 
-                      className={
-                        i === 0 
-                          ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold sticky top-0' 
-                          : i % 2 === 0 
-                            ? 'bg-gray-50 hover:bg-blue-50' 
-                            : 'bg-white hover:bg-blue-50'
-                      }
-                    >
-                      <td className="border border-gray-300 px-2 py-2 text-center font-semibold w-12">
-                        {i === 0 ? '#' : i}
-                      </td>
+                  {preview.slice(1).map((row, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-white/5 transition-colors" style={{borderColor:'var(--border)', color:'var(--text-primary)'}}>
+                      <td className="px-3 py-2 font-medium theme-text-muted">{i + 1}</td>
                       {row.map((cell: any, j: number) => (
-                        <td 
-                          key={j} 
-                          className="border border-gray-300 px-3 py-2 truncate max-w-[200px]" 
-                          title={String(cell)}
-                        >
+                        <td key={j} className="px-3 py-2 border-l truncate max-w-[200px] theme-border" title={String(cell)}>
                           {String(cell)}
                         </td>
                       ))}
@@ -298,8 +295,8 @@ export default function ImportPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-gray-500 mt-3 bg-gray-100 p-2 rounded">
-              ℹ️ <strong>Important:</strong> First row should contain column headers. System will auto-detect column names.
+            <p className="text-xs mt-3 p-2 rounded border" style={{background:'var(--bg-surface)', color:'var(--text-muted)', borderColor:'var(--border)'}}>
+              ℹ️ <strong className="theme-text-primary">Important:</strong> First row should contain column headers. System will auto-detect column names.
             </p>
           </div>
         )}
@@ -308,11 +305,11 @@ export default function ImportPage() {
         <button
           onClick={handleImport}
           disabled={!file || loading}
-          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-5 rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed font-bold text-xl flex items-center justify-center gap-3 shadow-xl transition-all transform hover:scale-[1.02]"
+          className="w-full bg-gradient-to-r from-emerald-600 to-green-600 text-white px-8 py-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xl flex items-center justify-center gap-3 shadow-lg transition-transform transform hover:scale-[1.02] active:scale-[0.98]"
         >
           {loading ? (
             <>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-3 border-white"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
               Importing Trades...
             </>
           ) : (
@@ -325,14 +322,14 @@ export default function ImportPage() {
 
         {/* Error Display */}
         {error && (
-          <div className="mt-6 bg-red-50 border-2 border-red-400 rounded-lg p-6 shadow-lg">
+          <div className="mt-6 border-2 rounded-xl p-6 shadow-lg" style={{background:'rgba(239, 68, 68, 0.1)', borderColor:'rgba(239, 68, 68, 0.3)'}}>
             <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="w-7 h-7 text-red-600 flex-shrink-0" />
+              <AlertCircle className="w-7 h-7 text-red-500 flex-shrink-0" />
               <div className="flex-1">
-                <h4 className="font-bold text-red-900 text-xl mb-1">
+                <h4 className="font-bold text-red-500 text-xl mb-1">
                   {error.error || 'Import Failed'}
                 </h4>
-                <p className="text-red-700 text-base">
+                <p className="text-red-400 text-base">
                   {error.message || 'An error occurred during import'}
                 </p>
               </div>
@@ -340,11 +337,11 @@ export default function ImportPage() {
 
             {/* Debug Info */}
             {error.detectedHeaders && (
-              <div className="mt-4 bg-white rounded-lg p-4 border-2 border-red-200">
-                <p className="text-sm font-bold text-gray-900 mb-2">📋 Detected Headers:</p>
+              <div className="mt-4 rounded-lg p-4 border theme-card">
+                <p className="text-sm font-bold mb-2 theme-text-primary">📋 Detected Headers:</p>
                 <div className="flex flex-wrap gap-2">
                   {error.detectedHeaders.map((h, i) => (
-                    <span key={i} className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
+                    <span key={i} className="text-xs px-3 py-1 rounded-full font-medium border" style={{background:'var(--bg-surface)', borderColor:'var(--border)', color:'var(--text-muted)'}}>
                       {String(h)}
                     </span>
                   ))}
@@ -353,11 +350,11 @@ export default function ImportPage() {
             )}
 
             {error.sampleRow && (
-              <div className="mt-3 bg-white rounded-lg p-4 border-2 border-red-200">
-                <p className="text-sm font-bold text-gray-900 mb-2">📊 Sample Data Row:</p>
+              <div className="mt-3 rounded-lg p-4 border theme-card">
+                <p className="text-sm font-bold mb-2 theme-text-primary">📊 Sample Data Row:</p>
                 <div className="flex flex-wrap gap-2">
                   {error.sampleRow.map((cell, i) => (
-                    <span key={i} className="text-xs bg-gray-100 text-gray-800 px-3 py-1 rounded font-mono">
+                    <span key={i} className="text-xs px-3 py-1 rounded font-mono border" style={{background:'var(--bg-surface)', borderColor:'var(--border)', color:'var(--text-muted)'}}>
                       {String(cell)}
                     </span>
                   ))}
@@ -366,65 +363,55 @@ export default function ImportPage() {
             )}
 
             {error.parseErrors && error.parseErrors.length > 0 && (
-              <div className="mt-3 bg-white rounded-lg p-4 border-2 border-red-200">
-                <p className="text-sm font-bold text-gray-900 mb-2">⚠️ Parse Errors:</p>
-                <ul className="text-xs text-gray-700 space-y-1">
+              <div className="mt-3 rounded-lg p-4 border theme-card">
+                <p className="text-sm font-bold text-red-400 mb-2">⚠️ Parse Errors:</p>
+                <ul className="text-xs space-y-1 theme-text-muted">
                   {error.parseErrors.slice(0, 5).map((e, i) => (
                     <li key={i} className="font-mono">
                       Row {e.row}: {e.error}
                     </li>
                   ))}
                   {error.parseErrors.length > 5 && (
-                    <li className="text-gray-500 italic">
+                    <li className="italic opacity-70">
                       ...and {error.parseErrors.length - 5} more errors
                     </li>
                   )}
                 </ul>
               </div>
             )}
-
-            <div className="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
-              <p className="text-sm font-bold text-yellow-900 mb-2">💡 How to Fix:</p>
-              <ul className="text-sm text-yellow-800 space-y-1">
-                <li>✓ Ensure first row has column headers</li>
-                <li>✓ Required: Symbol, Entry Price, Quantity</li>
-                <li>✓ Check for empty rows or invalid data</li>
-                <li>✓ Remove any summary rows at bottom of file</li>
-              </ul>
-            </div>
           </div>
         )}
 
         {/* Success Display */}
         {result && (
-          <div className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-6 shadow-lg">
+          <div className="mt-6 border-2 rounded-xl p-6 shadow-lg" style={{background:'rgba(16, 185, 129, 0.1)', borderColor:'rgba(16, 185, 129, 0.3)'}}>
             <div className="flex items-start gap-3">
-              <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 animate-bounce" />
+              <CheckCircle className="w-8 h-8 text-green-500 flex-shrink-0 animate-bounce" />
               <div className="flex-1">
-                <h4 className="font-bold text-green-900 text-2xl mb-2">
+                <h4 className="font-bold text-green-500 text-2xl mb-2">
                   🎉 Import Successful!
                 </h4>
-                <p className="text-green-800 text-lg mb-3">
+                <p className="text-lg mb-3 theme-text-primary">
                   {result.message}
                 </p>
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-white rounded-lg p-3 border border-green-200">
-                    <p className="text-xs text-gray-600">Imported</p>
-                    <p className="text-2xl font-bold text-green-600">
+                  <div className="rounded-lg p-3 border" style={{background:'var(--bg-card)', borderColor:'rgba(16, 185, 129, 0.3)'}}>
+                    <p className="text-xs theme-text-muted">Imported</p>
+                    <p className="text-2xl font-bold text-green-500">
                       {result.imported}
                     </p>
                   </div>
                   {result.skipped > 0 && (
-                    <div className="bg-white rounded-lg p-3 border border-yellow-200">
-                      <p className="text-xs text-gray-600">Skipped</p>
-                      <p className="text-2xl font-bold text-yellow-600">
+                    <div className="rounded-lg p-3 border" style={{background:'var(--bg-card)', borderColor:'rgba(234, 179, 8, 0.3)'}}>
+                      <p className="text-xs theme-text-muted">Skipped</p>
+                      <p className="text-2xl font-bold text-yellow-500">
                         {result.skipped}
                       </p>
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-green-700">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-700"></div>
+                <div className="flex items-center gap-2 text-green-500">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500"></div>
                   <span className="text-sm font-medium">Redirecting to trades page...</span>
                 </div>
               </div>
@@ -433,23 +420,23 @@ export default function ImportPage() {
         )}
 
         {/* Help Section */}
-        <div className="mt-8 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200">
-          <h3 className="font-bold text-purple-900 mb-4 text-lg">💡 Import Guide</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-purple-800">
+        <div className="mt-8 rounded-xl p-6 border-2" style={{background:'var(--bg-card)', borderColor:'var(--border-accent)'}}>
+          <h3 className="font-bold mb-4 text-lg theme-text-primary">💡 Import Guide</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm theme-text-muted">
             <div>
-              <p className="font-semibold mb-2">✓ File Format:</p>
-              <ul className="space-y-1 ml-4">
-                <li>• CSV or Excel (.xlsx, .xls)</li>
-                <li>• First row = headers</li>
-                <li>• No blank rows at top</li>
+              <p className="font-semibold mb-2 theme-text-primary">✓ File Format:</p>
+              <ul className="space-y-1 ml-4 list-disc pl-4 theme-text-muted">
+                <li>CSV or Excel (.xlsx, .xls)</li>
+                <li>First row = headers</li>
+                <li>No blank rows at top</li>
               </ul>
             </div>
             <div>
-              <p className="font-semibold mb-2">✓ P&L Calculation:</p>
-              <ul className="space-y-1 ml-4">
-                <li>• <strong>Long:</strong> (Exit - Entry) × Qty</li>
-                <li>• <strong>Short:</strong> (Entry - Exit) × Qty</li>
-                <li>• Auto-calculated if exit price provided</li>
+              <p className="font-semibold mb-2 theme-text-primary">✓ P&L Calculation:</p>
+              <ul className="space-y-1 ml-4 list-disc pl-4 theme-text-muted">
+                <li><strong>Long:</strong> (Exit - Entry) × Qty</li>
+                <li><strong>Short:</strong> (Entry - Exit) × Qty</li>
+                <li>Auto-calculated if exit price provided</li>
               </ul>
             </div>
           </div>
