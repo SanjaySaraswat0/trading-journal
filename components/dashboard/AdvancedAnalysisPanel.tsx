@@ -6,7 +6,7 @@ import {
     AlertTriangle, CheckCircle, Target, BarChart3, Zap,
     Award, Loader2, ChevronDown, ChevronUp, Shield,
     Heart, Lightbulb, BookOpen, Star, ArrowRight, RefreshCw,
-    Sparkles, Activity, TrendingFlat,
+    Sparkles, Activity,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,6 +42,20 @@ interface AIInsights {
         how_to_fix: string;
         why_harmful: string;
         examples?: string[];
+    }>;
+    daily_performance?: Array<{
+        date: string;
+        trades: number;
+        wins: number;
+        losses: number;
+        pnl: number;
+        verdict: string;
+        note: string;
+    }>;
+    overtrading_alerts?: Array<{
+        date: string;
+        trade_count: number;
+        message: string;
     }>;
     strongest_areas?: Array<{
         strength: string;
@@ -85,26 +99,26 @@ interface AIInsights {
 
 const impactColor = (impact: string) => {
     if (impact === 'High' || impact === 'Critical')
-        return 'border-l-red-500 bg-gradient-to-r from-red-950/60 to-slate-900/80 text-red-100';
+        return 'border-l-red-500 bg-gradient-to-r from-red-50 to-white dark:from-red-950/60 dark:to-slate-900/80 text-red-900 dark:text-red-100';
     if (impact === 'Medium')
-        return 'border-l-orange-500 bg-gradient-to-r from-orange-950/60 to-slate-900/80 text-orange-100';
-    return 'border-l-yellow-500 bg-gradient-to-r from-yellow-950/40 to-slate-900/80 text-yellow-100';
+        return 'border-l-orange-500 bg-gradient-to-r from-orange-50 to-white dark:from-orange-950/60 dark:to-slate-900/80 text-orange-900 dark:text-orange-100';
+    return 'border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-white dark:from-yellow-950/40 dark:to-slate-900/80 text-yellow-900 dark:text-yellow-100';
 };
 
 const impactBadge = (impact: string) => {
     if (impact === 'High' || impact === 'Critical')
-        return 'bg-red-500/20 text-red-300 border border-red-500/40';
+        return 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/40';
     if (impact === 'Medium')
-        return 'bg-orange-500/20 text-orange-300 border border-orange-500/40';
-    return 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40';
+        return 'bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-500/20 dark:text-orange-300 dark:border-orange-500/40';
+    return 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/40';
 };
 
 const gradeColor = (grade: string) => {
-    if (grade === 'A') return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30';
-    if (grade === 'B') return 'text-blue-400 bg-blue-400/10 border-blue-400/30';
-    if (grade === 'C') return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30';
-    if (grade === 'D') return 'text-orange-400 bg-orange-400/10 border-orange-400/30';
-    return 'text-red-400 bg-red-400/10 border-red-400/30';
+    if (grade === 'A') return 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/30';
+    if (grade === 'B') return 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-400/10 dark:border-blue-400/30';
+    if (grade === 'C') return 'text-yellow-700 bg-yellow-50 border-yellow-200 dark:text-yellow-400 dark:bg-yellow-400/10 dark:border-yellow-400/30';
+    if (grade === 'D') return 'text-orange-700 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-400/10 dark:border-orange-400/30';
+    return 'text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-400/10 dark:border-red-400/30';
 };
 
 // ─── SVG Score Ring ────────────────────────────────────────────────────────────
@@ -149,10 +163,10 @@ function RingCard({ score, max = 100, label, subtitle }: { score: number; max?: 
     const textColor = pct >= 0.7 ? 'text-emerald-400' : pct >= 0.5 ? 'text-amber-400' : 'text-red-400';
 
     return (
-        <div className="flex flex-col items-center gap-2 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
+        <div className="flex flex-col items-center gap-2 p-4 bg-white/60 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none">
             <div className="relative" style={{ width: size, height: size }}>
                 <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
-                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1e293b" strokeWidth="8" />
+                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="8" />
                     <circle
                         cx={size / 2} cy={size / 2} r={r} fill="none"
                         stroke={stroke} strokeWidth="8"
@@ -166,7 +180,7 @@ function RingCard({ score, max = 100, label, subtitle }: { score: number; max?: 
                 </div>
             </div>
             <div className="text-center">
-                <p className="text-sm font-semibold text-white">{label}</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">{label}</p>
                 {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
             </div>
         </div>
@@ -180,27 +194,27 @@ function Section({ title, icon: Icon, id, defaultOpen = false, children, badge, 
     children: React.ReactNode; badge?: string; accentColor?: string;
 }) {
     const [open, setOpen] = useState(defaultOpen);
-    const accentMap: any = {
-        purple: 'text-purple-400 border-purple-500/30 bg-purple-500/5',
-        red: 'text-red-400 border-red-500/30 bg-red-500/5',
-        green: 'text-green-400 border-green-500/30 bg-green-500/5',
-        blue: 'text-blue-400 border-blue-500/30 bg-blue-500/5',
-        amber: 'text-amber-400 border-amber-500/30 bg-amber-500/5',
-        orange: 'text-orange-400 border-orange-500/30 bg-orange-500/5',
+    const accentMap: Record<string, string> = {
+        purple: 'text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 bg-purple-50/50 dark:bg-purple-500/5',
+        red: 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5',
+        green: 'text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30 bg-green-50/50 dark:bg-green-500/5',
+        blue: 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-500/5',
+        amber: 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5',
+        orange: 'text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/30 bg-orange-50/50 dark:bg-orange-500/5',
     };
     const ac = accentMap[accentColor] || accentMap.purple;
 
     return (
-        <div className={`rounded-2xl border overflow-hidden ${ac}`}>
+        <div className={`rounded-2xl border overflow-hidden ${ac} shadow-sm dark:shadow-none`}>
             <button onClick={() => setOpen(!open)}
-                className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                className="w-full px-5 py-4 flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${ac}`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center border border-current opacity-80 mix-blend-multiply dark:mix-blend-normal bg-white/50 dark:bg-transparent`}>
                         <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-base font-bold text-white">{title}</span>
+                    <span className="text-base font-bold text-slate-900 dark:text-white mix-blend-normal">{title}</span>
                     {badge && (
-                        <span className="text-xs px-2.5 py-0.5 bg-white/10 text-slate-300 rounded-full font-semibold border border-white/10">
+                        <span className="text-xs px-2.5 py-0.5 bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 rounded-full font-semibold border border-black/10 dark:border-white/10">
                             {badge}
                         </span>
                     )}
@@ -308,9 +322,16 @@ export default function AdvancedAnalysisPanel() {
         try {
             const res = await fetch('/api/analysis/advanced', { method: 'POST' });
             const data = await res.json();
+            console.log('🔥 Advanced API response:', data);
+            console.log('🔥 ai_insights:', data.analysis?.ai_insights);
             if (!res.ok) throw new Error(data.error || 'AI analysis failed');
             if (data.analysis?.ai_insights) {
+                console.log('✅ Setting aiInsights:', data.analysis.ai_insights);
+                console.log('📅 daily_performance:', data.analysis.ai_insights?.daily_performance);
+                console.log('⚠️ overtrading_alerts:', data.analysis.ai_insights?.overtrading_alerts);
                 setAiInsights(data.analysis.ai_insights);
+            } else {
+                console.warn('⚠️ No ai_insights in response! Full response:', JSON.stringify(data, null, 2));
             }
         } catch (err: any) {
             setAiError(err.message || 'Gemini AI analysis failed');
@@ -401,18 +422,18 @@ export default function AdvancedAnalysisPanel() {
         <div className="space-y-4">
 
             {/* ── Header Bar ──────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between bg-gradient-to-r from-slate-800/80 to-slate-800/40 rounded-2xl px-5 py-4 border border-slate-700/50 backdrop-blur-sm">
+            <div className="flex items-center justify-between bg-white/80 dark:bg-gradient-to-r dark:from-slate-800/80 dark:to-slate-800/40 rounded-2xl px-5 py-4 border border-slate-200 dark:border-slate-700/50 backdrop-blur-sm shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-md shadow-purple-500/30">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 dark:from-purple-600 dark:to-pink-600 rounded-xl flex items-center justify-center shadow-md shadow-purple-500/30">
                         <Brain className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                        <p className="font-bold text-white">Advanced AI Analysis Complete</p>
-                        <p className="text-xs text-slate-400">{tradesAnalyzed} trades analyzed • {new Date(r.analyzed_at).toLocaleString('en-IN')}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">Advanced AI Analysis Complete</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{tradesAnalyzed} trades analyzed • {new Date(r.analyzed_at).toLocaleString('en-IN')}</p>
                     </div>
                 </div>
                 <button onClick={fetchAll}
-                    className="flex items-center gap-2 px-4 py-2 text-purple-400 border border-purple-500/30 rounded-xl hover:bg-purple-500/10 text-sm font-semibold transition-colors">
+                    className="flex items-center gap-2 px-4 py-2 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/30 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-500/10 text-sm font-semibold transition-colors">
                     <RefreshCw className="w-4 h-4" />
                     Re-analyze
                 </button>
@@ -420,12 +441,12 @@ export default function AdvancedAnalysisPanel() {
 
             {/* ── Quick Stats ──────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4">
-                    <p className="text-xs text-blue-400 font-semibold mb-1 uppercase tracking-wide">Trades Analyzed</p>
-                    <p className="text-3xl font-black text-white">{r.rule_based_patterns.totalAnalyzed}</p>
+                <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm dark:shadow-none">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wide">Trades Analyzed</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white">{r.rule_based_patterns.totalAnalyzed}</p>
                 </div>
 
-                <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center">
+                <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center shadow-sm dark:shadow-none">
                     <RingCard
                         score={r.discipline_score}
                         label="Discipline"
@@ -433,42 +454,42 @@ export default function AdvancedAnalysisPanel() {
                     />
                 </div>
 
-                <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4">
-                    <p className="text-xs text-emerald-400 font-semibold mb-1 uppercase tracking-wide">Recovery Rate</p>
-                    <p className="text-3xl font-black text-white">{r.recovery_rate.toFixed(0)}%</p>
+                <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm dark:shadow-none">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1 uppercase tracking-wide">Recovery Rate</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white">{r.recovery_rate.toFixed(0)}%</p>
                     <p className="text-xs text-slate-500 mt-1">Wins after losses</p>
                 </div>
 
-                <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4">
-                    <p className="text-xs text-orange-400 font-semibold mb-1 uppercase tracking-wide">Max Loss Streak</p>
-                    <p className="text-3xl font-black text-white">{r.rule_based_patterns.maxConsecutiveLosses}</p>
+                <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm dark:shadow-none">
+                    <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1 uppercase tracking-wide">Max Loss Streak</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white">{r.rule_based_patterns.maxConsecutiveLosses}</p>
                     <p className="text-xs text-slate-500 mt-1">Consecutive losses</p>
                 </div>
             </div>
 
             {/* ── Gemini AI Loading indicator ──────────────────────────────────── */}
             {aiLoading && (
-                <div className="bg-gradient-to-r from-purple-950/50 to-pink-950/30 border border-purple-500/30 rounded-2xl p-4 flex items-center gap-4">
-                    <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0 border border-purple-500/30">
-                        <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                <div className="bg-purple-50/80 dark:bg-gradient-to-r dark:from-purple-950/50 dark:to-pink-950/30 border border-purple-200 dark:border-purple-500/30 rounded-2xl p-4 flex items-center gap-4 shadow-sm dark:shadow-none">
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0 border border-purple-200 dark:border-purple-500/30">
+                        <Loader2 className="w-5 h-5 text-purple-500 dark:text-purple-400 animate-spin" />
                     </div>
                     <div>
-                        <p className="font-bold text-purple-200">Gemini AI is analyzing deeply…</p>
-                        <p className="text-sm text-purple-400/70">Psychological &amp; behavioral pattern analysis in progress</p>
+                        <p className="font-bold text-purple-900 dark:text-purple-200">Gemini AI is analyzing deeply…</p>
+                        <p className="text-sm text-purple-700 dark:text-purple-400/70">Psychological &amp; behavioral pattern analysis in progress</p>
                     </div>
                     {/* shimmer */}
-                    <div className="ml-auto h-6 w-24 rounded-xl bg-purple-500/10 overflow-hidden">
-                        <div className="h-full w-full animate-pulse bg-gradient-to-r from-transparent via-purple-500/20 to-transparent" />
+                    <div className="ml-auto h-6 w-24 rounded-xl bg-purple-100 dark:bg-purple-500/10 overflow-hidden">
+                        <div className="h-full w-full animate-pulse bg-gradient-to-r from-transparent via-purple-300/30 dark:via-purple-500/20 to-transparent" />
                     </div>
                 </div>
             )}
 
             {aiError && (
-                <div className="bg-orange-950/30 border border-orange-500/30 rounded-2xl p-4 flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                <div className="bg-orange-50/80 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-500/30 rounded-2xl p-4 flex items-start gap-3 shadow-sm dark:shadow-none">
+                    <AlertTriangle className="w-5 h-5 text-orange-500 dark:text-orange-400 shrink-0 mt-0.5" />
                     <div>
-                        <p className="font-semibold text-orange-300">Gemini AI unavailable</p>
-                        <p className="text-sm text-orange-400/70">{aiError} — Rule-based analysis is shown below.</p>
+                        <p className="font-semibold text-orange-900 dark:text-orange-300">Gemini AI unavailable</p>
+                        <p className="text-sm text-orange-700 dark:text-orange-400/70">{aiError} — Rule-based analysis is shown below.</p>
                     </div>
                 </div>
             )}
@@ -478,41 +499,111 @@ export default function AdvancedAnalysisPanel() {
                 <>
                     {/* Personalized Message */}
                     {aiInsights.personalized_message && (
-                        <div className="bg-gradient-to-r from-purple-900/60 via-pink-900/40 to-purple-900/60 rounded-2xl p-6 border border-purple-500/25">
+                        <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 dark:from-purple-900/60 dark:via-pink-900/40 dark:to-purple-900/60 rounded-2xl p-6 border border-purple-200 dark:border-purple-500/25 shadow-sm dark:shadow-none">
                             <div className="flex items-start gap-4">
-                                <div className="w-10 h-10 bg-yellow-400/10 border border-yellow-400/30 rounded-xl flex items-center justify-center shrink-0">
-                                    <Star className="w-5 h-5 text-yellow-400" />
+                                <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-400/10 border border-yellow-200 dark:border-yellow-400/30 rounded-xl flex items-center justify-center shrink-0">
+                                    <Star className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
                                 </div>
                                 <div>
-                                    <p className="font-bold text-white mb-1 flex items-center gap-2">
+                                    <p className="font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                                         Gemini's Message For You
-                                        <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30">AI</span>
+                                        <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-500/30">AI</span>
                                     </p>
-                                    <p className="text-purple-100/80 leading-relaxed text-sm">{aiInsights.personalized_message}</p>
+                                    <p className="text-purple-900/80 dark:text-purple-100/80 leading-relaxed text-sm">{aiInsights.personalized_message}</p>
                                 </div>
                             </div>
                         </div>
                     )}
 
+                    {/* ── Overtrading Alerts ── */}
+                    {aiInsights.overtrading_alerts && aiInsights.overtrading_alerts.length > 0 && (
+                        <Section title="⚠️ Overtrading Alerts" icon={AlertTriangle} id="overtrading" defaultOpen={true}
+                            badge={`${aiInsights.overtrading_alerts.length} days`} accentColor="red">
+                            <div className="space-y-3 mt-2">
+                                {aiInsights.overtrading_alerts.map((alert, i) => (
+                                    <div key={i} className="flex items-start gap-3 bg-red-50/80 dark:bg-red-950/30 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
+                                        <div className="w-8 h-8 bg-red-100 dark:bg-red-500/10 rounded-lg flex items-center justify-center shrink-0 border border-red-200 dark:border-red-500/30">
+                                            <span className="text-sm font-bold text-red-600 dark:text-red-400">{alert.trade_count}</span>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-red-800 dark:text-red-200 text-sm">{alert.date} — {alert.trade_count} trades in one day</p>
+                                            <p className="text-xs text-red-700/80 dark:text-red-300/70 mt-0.5">{alert.message}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Section>
+                    )}
+
+                    {/* ── Daily Performance Table ── */}
+                    {aiInsights.daily_performance && aiInsights.daily_performance.length > 0 && (
+                        <Section title="📅 Daily Performance Breakdown" icon={Calendar} id="daily" defaultOpen={true}
+                            badge={`${aiInsights.daily_performance.length} days`} accentColor="blue">
+                            <div className="mt-3 overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 dark:border-slate-700/50">
+                                            <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Date</th>
+                                            <th className="text-center py-2 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Trades</th>
+                                            <th className="text-center py-2 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">W/L</th>
+                                            <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">P&L</th>
+                                            <th className="text-center py-2 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Verdict</th>
+                                            <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide hidden md:table-cell">AI Note</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                        {aiInsights.daily_performance.map((day, i) => {
+                                            const verdictStyle = day.verdict === 'Good'
+                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                                : day.verdict === 'Overtrading'
+                                                    ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'
+                                                    : day.verdict === 'Bad'
+                                                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300'
+                                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300';
+                                            return (
+                                                <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                    <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-white">{day.date}</td>
+                                                    <td className="py-2.5 px-2 text-center text-slate-600 dark:text-slate-300">{day.trades}</td>
+                                                    <td className="py-2.5 px-2 text-center">
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{day.wins}W</span>
+                                                        <span className="text-slate-400 mx-0.5">/</span>
+                                                        <span className="text-red-600 dark:text-red-400 font-semibold">{day.losses}L</span>
+                                                    </td>
+                                                    <td className={`py-2.5 px-3 text-right font-bold ${day.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                        {day.pnl >= 0 ? '+' : ''}₹{day.pnl}
+                                                    </td>
+                                                    <td className="py-2.5 px-2 text-center">
+                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${verdictStyle}`}>{day.verdict}</span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-xs text-slate-500 dark:text-slate-400 hidden md:table-cell">{day.note}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Section>
+                    )}
+
                     {/* Risk Management Grade */}
                     {aiInsights.risk_management_grade && (
-                        <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5 flex items-center gap-5">
-                            <div className={`w-20 h-20 rounded-2xl border-2 flex items-center justify-center text-4xl font-black shrink-0 ${gradeColor(aiInsights.risk_management_grade)}`}>
+                        <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 flex items-center gap-5 shadow-sm dark:shadow-none">
+                            <div className={`w-20 h-20 rounded-2xl border flex items-center justify-center text-4xl font-black shrink-0 ${gradeColor(aiInsights.risk_management_grade)}`}>
                                 {aiInsights.risk_management_grade}
                             </div>
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Shield className="w-4 h-4 text-blue-400" />
-                                    <p className="font-bold text-white">Risk Management Grade</p>
+                                    <Shield className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                                    <p className="font-bold text-slate-900 dark:text-white">Risk Management Grade</p>
                                 </div>
                                 {aiInsights.risk_management_issues && aiInsights.risk_management_issues.length > 0 && (
                                     <div className="space-y-1.5">
                                         {aiInsights.risk_management_issues.slice(0, 3).map((issue, i) => (
                                             <div key={i} className="flex items-start gap-2 text-sm">
-                                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${issue.severity === 'Critical' ? 'bg-red-500/20 text-red-300' : issue.severity === 'High' ? 'bg-orange-500/20 text-orange-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
+                                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${issue.severity === 'Critical' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' : issue.severity === 'High' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'}`}>
                                                     {issue.severity}
                                                 </span>
-                                                <span className="text-slate-300">{issue.issue} — <span className="text-emerald-400">{issue.fix}</span></span>
+                                                <span className="text-slate-700 dark:text-slate-300">{issue.issue} — <span className="text-emerald-600 dark:text-emerald-400">{issue.fix}</span></span>
                                             </div>
                                         ))}
                                     </div>
@@ -531,17 +622,17 @@ export default function AdvancedAnalysisPanel() {
                                         <div className="flex items-start justify-between gap-3 mb-2">
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="text-xs font-bold px-2 py-0.5 bg-white/10 rounded-full uppercase tracking-wide">{m.category}</span>
+                                                    <span className="text-xs font-bold px-2 py-0.5 bg-black/5 dark:bg-white/10 rounded-full uppercase tracking-wide opacity-80">{m.category}</span>
                                                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${impactBadge(m.impact)}`}>{m.impact} Impact</span>
                                                 </div>
-                                                <h4 className="font-bold text-base text-white">{m.mistake}</h4>
+                                                <h4 className="font-bold text-base text-slate-900 dark:text-white">{m.mistake}</h4>
                                             </div>
                                         </div>
                                         <p className="text-xs mb-1 opacity-70">📊 {m.frequency}</p>
                                         <p className="text-xs mb-3 opacity-70">⚠️ {m.why_harmful}</p>
-                                        <div className="bg-black/20 border border-white/10 rounded-lg p-3 text-xs">
-                                            <p className="font-semibold mb-1 text-emerald-400">✅ How To Fix:</p>
-                                            <p className="text-slate-200">{m.how_to_fix}</p>
+                                        <div className="bg-slate-100/80 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-3 text-xs">
+                                            <p className="font-semibold mb-1 text-emerald-600 dark:text-emerald-400">✅ How To Fix:</p>
+                                            <p className="text-slate-700 dark:text-slate-200">{m.how_to_fix}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -555,15 +646,15 @@ export default function AdvancedAnalysisPanel() {
                             badge={`${aiInsights.strongest_areas.length} found`} accentColor="green">
                             <div className="grid md:grid-cols-2 gap-3 mt-2">
                                 {aiInsights.strongest_areas.map((s, i) => (
-                                    <div key={i} className="bg-emerald-950/40 border border-emerald-500/25 rounded-xl p-4">
+                                    <div key={i} className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/25 rounded-xl p-4">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                                            <h4 className="font-bold text-emerald-300 text-sm">{s.strength}</h4>
+                                            <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                                            <h4 className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">{s.strength}</h4>
                                         </div>
-                                        <p className="text-xs text-slate-400 mb-2">📊 {s.evidence}</p>
-                                        <div className="text-xs bg-black/20 border border-emerald-500/20 rounded-lg p-2">
-                                            <span className="font-semibold text-emerald-400">Leverage it: </span>
-                                            <span className="text-slate-300">{s.how_to_leverage}</span>
+                                        <p className="text-xs text-slate-700 dark:text-slate-400 mb-2">📊 {s.evidence}</p>
+                                        <div className="text-xs bg-slate-100/50 dark:bg-black/20 border border-emerald-200 dark:border-emerald-500/20 rounded-lg p-2">
+                                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Leverage it: </span>
+                                            <span className="text-slate-700 dark:text-slate-300">{s.how_to_leverage}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -576,7 +667,7 @@ export default function AdvancedAnalysisPanel() {
                         <Section title="🧠 Psychology & Mindset" icon={Brain} id="psychology" defaultOpen={true} accentColor="purple">
                             <div className="mt-2 space-y-4">
                                 {/* Mental State Ring */}
-                                <div className="flex items-center gap-5 bg-slate-900/60 border border-slate-700/40 rounded-xl p-4">
+                                <div className="flex items-center gap-5 bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/40 rounded-xl p-4 shadow-sm dark:shadow-none">
                                     <RingCard
                                         score={aiInsights.psychological_analysis.mental_state_score}
                                         max={10}
@@ -584,21 +675,21 @@ export default function AdvancedAnalysisPanel() {
                                         subtitle="Score /10"
                                     />
                                     <div className="flex-1">
-                                        <p className="font-bold text-white mb-0.5">Mental State Score</p>
-                                        <p className="text-xs text-slate-400">Based on trading behavior patterns detected by Gemini AI</p>
+                                        <p className="font-bold text-slate-900 dark:text-white mb-0.5">Mental State Score</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Based on trading behavior patterns detected by Gemini AI</p>
                                     </div>
                                 </div>
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     {aiInsights.psychological_analysis.detected_patterns.length > 0 && (
                                         <div>
-                                            <p className="font-semibold text-slate-300 mb-2 flex items-center gap-2 text-sm">
-                                                <Zap className="w-4 h-4 text-orange-400" /> Detected Patterns
+                                            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2 text-sm">
+                                                <Zap className="w-4 h-4 text-orange-500 dark:text-orange-400" /> Detected Patterns
                                             </p>
                                             <ul className="space-y-1.5">
                                                 {aiInsights.psychological_analysis.detected_patterns.map((p, i) => (
-                                                    <li key={i} className="text-sm text-slate-400 flex items-start gap-2">
-                                                        <span className="text-orange-400 mt-0.5 shrink-0">•</span>{p}
+                                                    <li key={i} className="text-sm text-slate-700 dark:text-slate-400 flex items-start gap-2">
+                                                        <span className="text-orange-500 dark:text-orange-400 mt-0.5 shrink-0">•</span>{p}
                                                     </li>
                                                 ))}
                                             </ul>
@@ -606,13 +697,13 @@ export default function AdvancedAnalysisPanel() {
                                     )}
                                     {aiInsights.psychological_analysis.emotional_triggers.length > 0 && (
                                         <div>
-                                            <p className="font-semibold text-slate-300 mb-2 flex items-center gap-2 text-sm">
-                                                <Heart className="w-4 h-4 text-red-400" /> Emotional Triggers
+                                            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2 text-sm">
+                                                <Heart className="w-4 h-4 text-red-500 dark:text-red-400" /> Emotional Triggers
                                             </p>
                                             <ul className="space-y-1.5">
                                                 {aiInsights.psychological_analysis.emotional_triggers.map((t, i) => (
-                                                    <li key={i} className="text-sm text-slate-400 flex items-start gap-2">
-                                                        <span className="text-red-400 mt-0.5 shrink-0">•</span>{t}
+                                                    <li key={i} className="text-sm text-slate-700 dark:text-slate-400 flex items-start gap-2">
+                                                        <span className="text-red-500 dark:text-red-400 mt-0.5 shrink-0">•</span>{t}
                                                     </li>
                                                 ))}
                                             </ul>
@@ -621,14 +712,14 @@ export default function AdvancedAnalysisPanel() {
                                 </div>
 
                                 {aiInsights.psychological_analysis.recommendations.length > 0 && (
-                                    <div className="bg-blue-950/40 border border-blue-500/20 rounded-xl p-4">
-                                        <p className="font-semibold text-blue-300 mb-2 flex items-center gap-2 text-sm">
-                                            <Lightbulb className="w-4 h-4" /> Recommendations
+                                    <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-500/20 rounded-xl p-4 shadow-sm dark:shadow-none">
+                                        <p className="font-semibold text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2 text-sm">
+                                            <Lightbulb className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Recommendations
                                         </p>
                                         <ul className="space-y-1.5">
                                             {aiInsights.psychological_analysis.recommendations.map((rec, i) => (
-                                                <li key={i} className="text-sm text-blue-200/80 flex items-start gap-2">
-                                                    <ArrowRight className="w-3 h-3 mt-1 shrink-0 text-blue-400" />{rec}
+                                                <li key={i} className="text-sm text-blue-800 dark:text-blue-200/80 flex items-start gap-2">
+                                                    <ArrowRight className="w-3 h-3 mt-1 shrink-0 text-blue-500 dark:text-blue-400" />{rec}
                                                 </li>
                                             ))}
                                         </ul>
@@ -774,24 +865,24 @@ export default function AdvancedAnalysisPanel() {
                     {r.recommendations.length === 0 ? (
                         <div className="text-center py-6 text-slate-500">
                             <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                            <p className="text-emerald-400 font-medium">✅ No critical issues detected — Keep it up!</p>
+                            <p className="text-emerald-600 dark:text-emerald-400 font-medium">✅ No critical issues detected — Keep it up!</p>
                         </div>
                     ) : (
                         r.recommendations.map((rec, i) => (
                             <div key={i} className={`border-l-4 rounded-xl p-4 ${rec.priority === 'critical'
-                                ? 'border-l-red-500 bg-red-950/30 text-red-100'
+                                ? 'border-l-red-500 bg-red-50/50 dark:bg-red-950/30 text-red-900 dark:text-red-100'
                                 : rec.priority === 'high'
-                                    ? 'border-l-orange-500 bg-orange-950/30 text-orange-100'
-                                    : 'border-l-yellow-500 bg-yellow-950/20 text-yellow-100'}`}>
+                                    ? 'border-l-orange-500 bg-orange-50/50 dark:bg-orange-950/30 text-orange-900 dark:text-orange-100'
+                                    : 'border-l-yellow-500 bg-yellow-50/50 dark:bg-yellow-950/20 text-yellow-900 dark:text-yellow-100'}`}>
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs font-bold px-2 py-0.5 bg-white/10 rounded-full uppercase">{rec.priority}</span>
+                                    <span className="text-xs font-bold px-2 py-0.5 bg-black/5 dark:bg-white/10 rounded-full uppercase">{rec.priority}</span>
                                     <span className="text-xs opacity-60">{rec.category}</span>
                                 </div>
-                                <h4 className="font-bold text-white">{rec.action}</h4>
+                                <h4 className="font-bold text-slate-900 dark:text-white">{rec.action}</h4>
                                 <p className="text-sm mt-1 opacity-70">{rec.reason}</p>
                                 <div className="flex gap-2 text-xs mt-2">
-                                    <span className="px-2 py-0.5 bg-white/10 rounded-full">Impact: {rec.impact}</span>
-                                    <span className="px-2 py-0.5 bg-white/10 rounded-full">{rec.difficulty} to fix</span>
+                                    <span className="px-2 py-0.5 bg-black/5 dark:bg-white/10 rounded-full border border-black/5 dark:border-white/5">Impact: {rec.impact}</span>
+                                    <span className="px-2 py-0.5 bg-black/5 dark:bg-white/10 rounded-full border border-black/5 dark:border-white/5">{rec.difficulty} to fix</span>
                                 </div>
                             </div>
                         ))
@@ -811,15 +902,27 @@ export default function AdvancedAnalysisPanel() {
                             <p className="text-xl font-black text-white">{r.rule_based_patterns.bestSetup.name}</p>
                             <p className="text-xs text-emerald-400 mt-1">{r.rule_based_patterns.bestSetup.winRate.toFixed(1)}% win rate • ₹{r.rule_based_patterns.bestSetup.pnl.toFixed(0)}</p>
                         </div>
-                        <div className="bg-red-950/30 border border-red-500/20 rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <TrendingDown className="w-4 h-4 text-red-400" />
-                                <h4 className="font-semibold text-red-300 text-sm">Worst Setup</h4>
+                        {r.rule_based_patterns.worstSetup.name === 'N/A' ? (
+                            <div className="bg-slate-800/30 border border-slate-600/20 rounded-xl p-4 flex flex-col justify-center">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <TrendingDown className="w-4 h-4 text-slate-500" />
+                                    <h4 className="font-semibold text-slate-400 text-sm">Worst Setup</h4>
+                                </div>
+                                <p className="text-white/60 text-sm font-medium">Only 1 setup type used</p>
+                                <p className="text-xs text-slate-500 mt-1">Try multiple setups to compare performance</p>
                             </div>
-                            <p className="text-xl font-black text-white">{r.rule_based_patterns.worstSetup.name}</p>
-                            <p className="text-xs text-red-400 mt-1">{r.rule_based_patterns.worstSetup.winRate.toFixed(1)}% win rate • ₹{r.rule_based_patterns.worstSetup.pnl.toFixed(0)}</p>
-                        </div>
+                        ) : (
+                            <div className="bg-red-950/30 border border-red-500/20 rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <TrendingDown className="w-4 h-4 text-red-400" />
+                                    <h4 className="font-semibold text-red-300 text-sm">Worst Setup</h4>
+                                </div>
+                                <p className="text-xl font-black text-white">{r.rule_based_patterns.worstSetup.name}</p>
+                                <p className="text-xs text-red-400 mt-1">{r.rule_based_patterns.worstSetup.winRate.toFixed(1)}% win rate • ₹{r.rule_based_patterns.worstSetup.pnl.toFixed(0)}</p>
+                            </div>
+                        )}
                     </div>
+
                     <div className="overflow-x-auto rounded-xl border border-slate-700/50">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-800/80">
@@ -858,32 +961,68 @@ export default function AdvancedAnalysisPanel() {
             {/* Time-Based Patterns */}
             <Section title="⏰ Time Patterns (Rule-Based)" icon={Clock} id="time" accentColor="blue">
                 <div className="mt-2 grid md:grid-cols-2 gap-3">
-                    <div className="bg-blue-950/30 border border-blue-500/20 rounded-xl p-4 text-center">
+                    {/* Best Hour */}
+                    <div className="bg-blue-950/30 dark:bg-blue-950/30 border border-blue-500/20 rounded-xl p-4 text-center">
                         <Clock className="w-5 h-5 text-blue-400 mx-auto mb-1" />
-                        <p className="text-xs font-semibold text-blue-300 mb-1">Best Trading Hour</p>
-                        <p className="text-4xl font-black text-white font-mono">{String(r.rule_based_patterns.bestHour.hour).padStart(2, '0')}:00</p>
+                        <p className="text-xs font-semibold text-blue-300 dark:text-blue-300 mb-1">Best Trading Hour</p>
+                        <p className="text-4xl font-black text-white font-mono">
+                            {String(r.rule_based_patterns.bestHour.hour).padStart(2, '0')}:00
+                        </p>
                         <p className="text-xs text-blue-400 mt-1">{r.rule_based_patterns.bestHour.winRate.toFixed(1)}% win rate</p>
                     </div>
-                    <div className="bg-orange-950/30 border border-orange-500/20 rounded-xl p-4 text-center">
-                        <AlertTriangle className="w-5 h-5 text-orange-400 mx-auto mb-1" />
-                        <p className="text-xs font-semibold text-orange-300 mb-1">Avoid This Hour</p>
-                        <p className="text-4xl font-black text-white font-mono">{String(r.worst_hour.hour).padStart(2, '0')}:00</p>
-                        <p className="text-xs text-orange-400 mt-1">{r.worst_hour.winRate.toFixed(1)}% win rate</p>
-                    </div>
-                    <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-4 text-center">
+
+                    {/* Worst Hour — only show if different from best */}
+                    {r.worst_hour.hour !== r.rule_based_patterns.bestHour.hour ? (
+                        <div className="bg-orange-950/30 dark:bg-orange-950/30 border border-orange-500/20 rounded-xl p-4 text-center">
+                            <AlertTriangle className="w-5 h-5 text-orange-400 mx-auto mb-1" />
+                            <p className="text-xs font-semibold text-orange-300 mb-1">Avoid This Hour</p>
+                            <p className="text-4xl font-black text-white font-mono">
+                                {String(r.worst_hour.hour).padStart(2, '0')}:00
+                            </p>
+                            <p className="text-xs text-orange-400 mt-1">{r.worst_hour.winRate.toFixed(1)}% win rate</p>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-800/30 border border-slate-600/20 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+                            <AlertTriangle className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+                            <p className="text-xs font-semibold text-slate-400 mb-1">Avoid This Hour</p>
+                            <p className="text-slate-500 text-sm font-medium">All trades at same hour</p>
+                            <p className="text-xs text-slate-600 mt-1">Trade more at different times for insight</p>
+                        </div>
+                    )}
+
+                    {/* Best Day */}
+                    <div className="bg-emerald-950/30 dark:bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-4 text-center">
                         <Calendar className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
                         <p className="text-xs font-semibold text-emerald-300 mb-1">Best Day</p>
-                        <p className="text-3xl font-black text-white">{r.day_analysis.bestDay.day}</p>
-                        <p className="text-xs text-emerald-400 mt-1">{r.day_analysis.bestDay.winRate.toFixed(1)}% win rate</p>
+                        {r.day_analysis.bestDay.day === 'N/A' ? (
+                            <p className="text-slate-400 text-sm">Not enough data</p>
+                        ) : (
+                            <>
+                                <p className="text-3xl font-black text-white">{r.day_analysis.bestDay.day}</p>
+                                <p className="text-xs text-emerald-400 mt-1">{r.day_analysis.bestDay.winRate.toFixed(1)}% win rate</p>
+                            </>
+                        )}
                     </div>
-                    <div className="bg-red-950/30 border border-red-500/20 rounded-xl p-4 text-center">
-                        <Calendar className="w-5 h-5 text-red-400 mx-auto mb-1" />
-                        <p className="text-xs font-semibold text-red-300 mb-1">Worst Day</p>
-                        <p className="text-3xl font-black text-white">{r.day_analysis.worstDay.day}</p>
-                        <p className="text-xs text-red-400 mt-1">{r.day_analysis.worstDay.winRate.toFixed(1)}% win rate</p>
-                    </div>
+
+                    {/* Worst Day — only show if different from best */}
+                    {r.day_analysis.worstDay.day === 'N/A' || r.day_analysis.worstDay.day === r.day_analysis.bestDay.day ? (
+                        <div className="bg-slate-800/30 border border-slate-600/20 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+                            <Calendar className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+                            <p className="text-xs font-semibold text-slate-400 mb-1">Worst Day</p>
+                            <p className="text-slate-500 text-sm font-medium">Only one active day</p>
+                            <p className="text-xs text-slate-600 mt-1">Trade on multiple days to see patterns</p>
+                        </div>
+                    ) : (
+                        <div className="bg-red-950/30 dark:bg-red-950/30 border border-red-500/20 rounded-xl p-4 text-center">
+                            <Calendar className="w-5 h-5 text-red-400 mx-auto mb-1" />
+                            <p className="text-xs font-semibold text-red-300 mb-1">Worst Day</p>
+                            <p className="text-3xl font-black text-white">{r.day_analysis.worstDay.day}</p>
+                            <p className="text-xs text-red-400 mt-1">{r.day_analysis.worstDay.winRate.toFixed(1)}% win rate</p>
+                        </div>
+                    )}
                 </div>
             </Section>
+
 
             {/* Behavioral Insights */}
             <Section title="🧠 Behavioral Insights" icon={Brain} id="behavioral" accentColor="purple">

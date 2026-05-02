@@ -9,7 +9,7 @@ import AdvancedAnalysisResults from '@/components/analysis/AdvancedAnalysisResul
 import AdvancedAnalysisPanel from '@/components/dashboard/AdvancedAnalysisPanel';
 import PsychologyTracker from '@/components/psychology/psychology-tracker';
 import {
-  Activity, DollarSign, Target, BarChart3, Calendar, Zap, Brain, Sparkles,
+  Activity, IndianRupee, Target, BarChart3, Calendar, Zap, Brain, Sparkles,
   AlertCircle, TrendingUp, TrendingDown, LogOut, Globe, Plus, Eye, Upload,
   ChevronDown, ChevronUp
 } from 'lucide-react';
@@ -175,33 +175,34 @@ export default function DashboardPage() {
         {/* ── AI ANALYSIS BANNER ───────────────────────────────────────────────── */}
         {totalTrades >= 5 && (
           <div className="animate-fade-up" style={{ animationDelay: '0.05s' }}>
-            <div className="relative overflow-hidden rounded-2xl border border-purple-500/30
-                            bg-gradient-to-r from-purple-950/70 via-pink-950/50 to-purple-950/70
-                            shadow-2xl shadow-purple-500/20">
+            <div className="relative overflow-hidden rounded-2xl border border-purple-200 dark:border-purple-500/30
+                            bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50
+                            dark:from-purple-950/70 dark:via-pink-950/50 dark:to-purple-950/70
+                            shadow-xl shadow-purple-500/10 dark:shadow-2xl dark:shadow-purple-500/20">
               {/* Glow orbs */}
               <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute -top-10 -left-10 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl" />
-                <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-pink-600/20 rounded-full blur-3xl" />
+                <div className="absolute -top-10 -left-10 w-48 h-48 bg-purple-400/20 dark:bg-purple-600/20 rounded-full blur-3xl" />
+                <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-pink-400/20 dark:bg-pink-600/20 rounded-full blur-3xl" />
               </div>
 
               <div className="relative flex items-center justify-between flex-wrap gap-4 p-6 md:p-8">
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="absolute inset-0 bg-purple-500/30 rounded-xl blur-md animate-pulse" />
-                    <div className="relative w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <div className="absolute inset-0 bg-purple-400/30 dark:bg-purple-500/30 rounded-xl blur-md animate-pulse" />
+                    <div className="relative w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 dark:from-purple-600 dark:to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
                       <Sparkles className="w-7 h-7 text-white" />
                     </div>
                   </div>
-                  <div className="text-white">
+                  <div className="text-slate-900 dark:text-white">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-xl font-black">🔥 Advanced AI Analysis Ready!</h3>
                     </div>
-                    <p className="text-purple-200/80 text-sm mb-3">
+                    <p className="text-purple-900/80 dark:text-purple-200/80 text-sm mb-3 font-medium dark:font-normal">
                       Discover patterns, mistakes, strengths & get actionable recommendations
                     </p>
                     <div className="flex flex-wrap gap-2 text-xs">
                       {['⏰ Time patterns', '🎯 Setup analysis', '🧠 Behavioral insights', '📊 Action items'].map(t => (
-                        <span key={t} className="bg-white/10 border border-white/15 px-2.5 py-1 rounded-full font-medium backdrop-blur-sm">
+                        <span key={t} className="bg-purple-100/80 dark:bg-white/10 text-purple-900 dark:text-white border border-purple-200 dark:border-white/15 px-2.5 py-1 rounded-full font-semibold dark:font-medium backdrop-blur-sm">
                           {t}
                         </span>
                       ))}
@@ -209,23 +210,26 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setShowAdvancedPanel(!showAdvancedPanel)}
-                  className="group relative flex items-center gap-3 px-6 py-3.5 bg-white text-purple-700
-                             rounded-xl font-bold shadow-lg hover:shadow-xl hover:shadow-purple-500/30
-                             hover:scale-105 active:scale-100 transition-all duration-200">
-                  <Brain className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                  <span>
-                    {showAdvancedPanel ? 'Hide Analysis' : 'Show Advanced Analysis'}
-                    <span className="block text-xs text-purple-400 font-medium">
-                      {showAdvancedPanel ? 'Click to close' : `${totalTrades} trades ready`}
+                <div className="flex flex-col items-center">
+                  <button
+                    onClick={() => setShowAdvancedPanel(!showAdvancedPanel)}
+                    className="group relative flex items-center gap-3 px-6 py-3.5 bg-white text-purple-700
+                               rounded-xl font-bold shadow-lg hover:shadow-xl hover:shadow-purple-500/30
+                               dark:border dark:border-purple-200/20
+                               hover:scale-105 active:scale-100 transition-all duration-200">
+                    <Brain className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                    <span>
+                      {showAdvancedPanel ? 'Hide Analysis' : 'Show Advanced Analysis'}
                     </span>
+                    {showAdvancedPanel
+                      ? <ChevronUp className="w-4 h-4 text-purple-400" />
+                      : <ChevronDown className="w-4 h-4 text-purple-400" />
+                    }
+                  </button>
+                  <span className="mt-2 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                    {showAdvancedPanel ? 'Click to close' : `${totalTrades} trades ready`}
                   </span>
-                  {showAdvancedPanel
-                    ? <ChevronUp className="w-4 h-4 text-purple-400" />
-                    : <ChevronDown className="w-4 h-4 text-purple-400" />
-                  }
-                </button>
+                </div>
               </div>
             </div>
           </div>
@@ -353,7 +357,7 @@ export default function DashboardPage() {
             color={winRate >= 50 ? 'green' : 'red'}
           />
           <StatsCard
-            icon={<DollarSign className="w-5 h-5" />}
+            icon={<IndianRupee className="w-5 h-5" />}
             title="Total P&L"
             value={`₹${totalPnL.toFixed(2)}`}
             subtitle={totalPnL >= 0 ? '↑ Profitable overall' : '↓ In loss overall'}
@@ -449,23 +453,23 @@ export default function DashboardPage() {
 
         {/* ── PSYCHOLOGY TRACKER ───────────────────────────────────────────── */}
         <div className="animate-fade-up">
-          <div className="rounded-2xl overflow-hidden border border-purple-500/25
-                          bg-gradient-to-r from-purple-950/60 to-pink-950/40
+          <div className="rounded-2xl overflow-hidden border border-purple-200 dark:border-purple-500/25
+                          bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/60 dark:to-pink-950/40
                           shadow-lg shadow-purple-500/10">
             <button
               onClick={() => setShowPsychology(!showPsychology)}
-              className="w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors">
+              className="w-full flex items-center justify-between p-5 hover:bg-purple-100/50 dark:hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-500/15 border border-purple-500/30 rounded-xl
+                <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 rounded-xl
                                 flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-purple-400" />
+                  <Brain className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="text-left">
-                  <h3 className="text-base font-bold text-white">Trading Psychology Tracker</h3>
-                  <p className="text-purple-300/60 text-xs">Track your mental state before trading</p>
+                  <h3 className="text-base font-bold text-slate-800 dark:text-white">Trading Psychology Tracker</h3>
+                  <p className="text-purple-900/60 dark:text-purple-300/60 font-medium dark:font-normal text-xs">Track your mental state before trading</p>
                 </div>
               </div>
-              <div className="text-slate-500">
+              <div className="text-slate-500 dark:text-slate-400">
                 {showPsychology ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
             </button>

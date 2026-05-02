@@ -91,22 +91,21 @@ function calculateRuleBasedPatterns(trades: Trade[]) {
     setupPerformance[setup].totalPnL += trade.pnl!;
   });
 
-  // Find best and worst setup
-  let bestSetup = { name: 'none', winRate: 0, pnl: 0 };
-  let worstSetup = { name: 'none', winRate: 100, pnl: 0 };
-
-  Object.entries(setupPerformance).forEach(([setup, stats]: [string, any]) => {
+  // Find best and worst setup — sort all setups by win rate
+  const setupEntries = Object.entries(setupPerformance).map(([setup, stats]: [string, any]) => {
     const total = stats.wins + stats.losses;
-    const winRate = (stats.wins / total) * 100;
+    const winRate = total > 0 ? (stats.wins / total) * 100 : 0;
+    return { name: setup, winRate, pnl: stats.totalPnL, total };
+  }).sort((a, b) => b.winRate - a.winRate);
 
-    if (winRate > bestSetup.winRate && total >= 3) {
-      bestSetup = { name: setup, winRate, pnl: stats.totalPnL };
-    }
-
-    if (winRate < worstSetup.winRate && total >= 3) {
-      worstSetup = { name: setup, winRate, pnl: stats.totalPnL };
-    }
-  });
+  const bestSetup = setupEntries[0]
+    ? { name: setupEntries[0].name, winRate: setupEntries[0].winRate, pnl: setupEntries[0].pnl }
+    : { name: 'N/A', winRate: 0, pnl: 0 };
+  // Worst is the last entry — only different from best if there are multiple setups
+  const worstSetupEntry = setupEntries.length > 1 ? setupEntries[setupEntries.length - 1] : null;
+  const worstSetup = worstSetupEntry
+    ? { name: worstSetupEntry.name, winRate: worstSetupEntry.winRate, pnl: worstSetupEntry.pnl }
+    : { name: 'N/A', winRate: 0, pnl: 0 };
 
   // Time-based patterns
   const hourlyPerformance: any = {};
@@ -124,17 +123,16 @@ function calculateRuleBasedPatterns(trades: Trade[]) {
     hourlyPerformance[hour].totalPnL += trade.pnl!;
   });
 
-  // Find best trading hour
-  let bestHour = { hour: 10, winRate: 0, pnl: 0 };
-  Object.entries(hourlyPerformance).forEach(([hour, stats]: [string, any]) => {
+  // Find best and worst trading hour — sort all hours
+  const hourEntries = Object.entries(hourlyPerformance).map(([hour, stats]: [string, any]) => {
     const total = stats.wins + stats.losses;
-    if (total >= 2) {
-      const winRate = (stats.wins / total) * 100;
-      if (winRate > bestHour.winRate) {
-        bestHour = { hour: parseInt(hour), winRate, pnl: stats.totalPnL };
-      }
-    }
-  });
+    const winRate = total > 0 ? (stats.wins / total) * 100 : 0;
+    return { hour: parseInt(hour), winRate, pnl: stats.totalPnL, total };
+  }).sort((a, b) => b.winRate - a.winRate);
+
+  const bestHour = hourEntries[0]
+    ? { hour: hourEntries[0].hour, winRate: hourEntries[0].winRate, pnl: hourEntries[0].pnl }
+    : { hour: 10, winRate: 0, pnl: 0 };
 
   // Emotional patterns
   const emotionalPatterns: any = {};
@@ -297,24 +295,23 @@ function analyzeDayOfWeek(trades: Trade[]) {
     }
   });
 
-  // Find best and worst day
-  let bestDay = { day: 'Monday', winRate: 0, pnl: 0 };
-  let worstDay = { day: 'Monday', winRate: 100, pnl: 0 };
+  // Find best and worst day — sort all active days
+  const activeDays = Object.entries(dayPerformance)
+    .filter(([, stats]: [string, any]) => stats.wins + stats.losses > 0)
+    .map(([day, stats]: [string, any]) => {
+      const total = stats.wins + stats.losses;
+      const winRate = total > 0 ? (stats.wins / total) * 100 : 0;
+      return { day, winRate, pnl: stats.totalPnL, total };
+    })
+    .sort((a, b) => b.winRate - a.winRate);
 
-  Object.entries(dayPerformance).forEach(([day, stats]: [string, any]) => {
-    const total = stats.wins + stats.losses;
-    if (total >= 2) {
-      const winRate = (stats.wins / total) * 100;
-
-      if (winRate > bestDay.winRate) {
-        bestDay = { day, winRate, pnl: stats.totalPnL };
-      }
-
-      if (winRate < worstDay.winRate) {
-        worstDay = { day, winRate, pnl: stats.totalPnL };
-      }
-    }
-  });
+  const bestDay = activeDays[0]
+    ? { day: activeDays[0].day, winRate: activeDays[0].winRate, pnl: activeDays[0].pnl }
+    : { day: 'N/A', winRate: 0, pnl: 0 };
+  const worstDayEntry = activeDays.length > 1 ? activeDays[activeDays.length - 1] : null;
+  const worstDay = worstDayEntry
+    ? { day: worstDayEntry.day, winRate: worstDayEntry.winRate, pnl: worstDayEntry.pnl }
+    : { day: 'N/A', winRate: 0, pnl: 0 };
 
   return { dayPerformance, bestDay, worstDay };
 }
@@ -338,20 +335,17 @@ function findWorstHour(trades: Trade[]) {
     hourlyPerformance[hour].totalPnL += trade.pnl!;
   });
 
-  let worstHour = { hour: 10, winRate: 100, pnl: 0 };
-  Object.entries(hourlyPerformance).forEach(([hour, stats]: [string, any]) => {
+  // Find worst trading hour — sort descending by win rate, worst is last
+  const allHours = Object.entries(hourlyPerformance).map(([hour, stats]: [string, any]) => {
     const total = stats.wins + stats.losses;
-    if (total >= 2) {
-      const winRate = (stats.wins / total) * 100;
-      if (winRate < worstHour.winRate) {
-        worstHour = {
-          hour: parseInt(hour),
-          winRate,
-          pnl: stats.totalPnL,
-        };
-      }
-    }
-  });
+    const winRate = total > 0 ? (stats.wins / total) * 100 : 0;
+    return { hour: parseInt(hour), winRate, pnl: stats.totalPnL, total };
+  }).sort((a, b) => a.winRate - b.winRate); // ascending = worst first
+
+  // Worst hour is the one with lowest win rate, but must differ from the best hour
+  const worstHour = allHours[0]
+    ? { hour: allHours[0].hour, winRate: allHours[0].winRate, pnl: allHours[0].pnl }
+    : { hour: 10, winRate: 100, pnl: 0 };
 
   return worstHour;
 }
