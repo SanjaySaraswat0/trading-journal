@@ -4,17 +4,26 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis client
-// Note: These environment variables need to be set in .env.local
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
-    : null;
-
 // Flag to enable/disable rate limiting (useful for development)
 export const RATE_LIMIT_ENABLED = process.env.ENABLE_RATE_LIMITING !== 'false';
+
+// Initialize Redis client safely - null if env vars missing OR rate limiting disabled
+let redis: Redis | null = null;
+try {
+  if (
+    RATE_LIMIT_ENABLED &&
+    process.env.UPSTASH_REDIS_REST_URL &&
+    process.env.UPSTASH_REDIS_REST_TOKEN
+  ) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+} catch (e) {
+  console.warn('Rate limiting disabled: Upstash Redis init failed', e);
+  redis = null;
+}
 
 // ==========================================
 // AUTHENTICATION RATE LIMITERS
