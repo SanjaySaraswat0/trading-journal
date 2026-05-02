@@ -34,42 +34,49 @@ const consoleFormat = winston.format.combine(
     })
 );
 
+// ⭐ KEY FIX: Vercel has a read-only filesystem — file writing is NOT allowed.
+// On Vercel/production: use Console only.
+// On local development: use file transports as well.
+const IS_VERCEL_OR_PRODUCTION =
+    process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
 // Create transports array
 const transports: winston.transport[] = [];
 
-// Console transport (always enabled in development)
-if (process.env.NODE_ENV !== 'production') {
-    transports.push(
-        new winston.transports.Console({
-            format: consoleFormat,
-            level: LOG_LEVEL,
-        })
-    );
-}
-
-// Daily rotate file transport for general logs
+// Console transport — always enabled (works everywhere)
 transports.push(
-    new DailyRotateFile({
-        filename: `${LOG_FILE_PATH}/app-%DATE%.log`,
-        datePattern: 'YYYY-MM-DD',
-        maxSize: '20m',
-        maxFiles: '14d',
-        format: customFormat,
+    new winston.transports.Console({
+        format: IS_VERCEL_OR_PRODUCTION ? customFormat : consoleFormat,
         level: LOG_LEVEL,
     })
 );
 
-// Daily rotate file transport for errors only
-transports.push(
-    new DailyRotateFile({
-        filename: `${LOG_FILE_PATH}/error-%DATE%.log`,
-        datePattern: 'YYYY-MM-DD',
-        maxSize: '20m',
-        maxFiles: '30d',
-        format: customFormat,
-        level: 'error',
-    })
-);
+// File transports — ONLY in local development (NOT on Vercel/production)
+if (!IS_VERCEL_OR_PRODUCTION) {
+    // Daily rotate file transport for general logs
+    transports.push(
+        new DailyRotateFile({
+            filename: `${LOG_FILE_PATH}/app-%DATE%.log`,
+            datePattern: 'YYYY-MM-DD',
+            maxSize: '20m',
+            maxFiles: '14d',
+            format: customFormat,
+            level: LOG_LEVEL,
+        })
+    );
+
+    // Daily rotate file transport for errors only
+    transports.push(
+        new DailyRotateFile({
+            filename: `${LOG_FILE_PATH}/error-%DATE%.log`,
+            datePattern: 'YYYY-MM-DD',
+            maxSize: '20m',
+            maxFiles: '30d',
+            format: customFormat,
+            level: 'error',
+        })
+    );
+}
 
 // Create the logger
 export const logger = winston.createLogger({
